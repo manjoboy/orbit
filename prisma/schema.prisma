@@ -1,0 +1,1623 @@
+// ============================================================================
+// CHIEF OF STAFF — Complete Data Model
+// ============================================================================
+// PostgreSQL 16 + pgvector + TimescaleDB
+// Row-Level Security (RLS) enforced via org_id on every table
+// ============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions", "fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector"), pg_trgm]
+}
+
+// ============================================================================
+// DOMAIN 1: IDENTITY & TENANCY
+// ============================================================================
+
+model Organization {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  domain      String?  // e.g., "decagon.ai"
+  industry    String?  // e.g., "b2b_saas", "fintech", "healthtech"
+  companySize CompanySize @default(GROWTH)
+  plan        PlanTier @default(TEAM)
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Industry Intelligence configuration
+  industryPack       String?  // e.g., "b2b_saas", "fintech"
+  competitors        Json     @default("[]") // tracked competitor domains
+  trackedCompanies   Json     @default("[]") // customers, prospects, partners
+
+  users              User[]
+  teams              Team[]
+  connectorConfigs   ConnectorConfig[]
+  industrySignals    IndustrySignal[]
+  benchmarkData      BenchmarkDatapoint[]
+  apiKeys            ApiKey[]
+  auditLogs          AuditLog[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String   @id @default(uuid()) @db.Uuid
+  orgId          String   @db.Uuid
+  email          String
+  name           String
+  avatarUrl      String?
+  role           UserRole @default(MEMBER)
+  jobTitle       String?
+  department     String?
+  timezone       String   @default("America/Los_Angeles")
+  isActive       Boolean  @default(true)
+  onboardedAt    DateTime?
+  lastActiveAt   DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Personalization
+  preferences        UserPreferences?
+  communicationStyle Json    @default("{}") // learned writing style profile
+  energyPattern      Json    @default("{}") // time-of-day productivity patterns
+  workingHours       Json    @default("{}") // configured work hours per day
+
+  org                Organization    @relation(fields: [orgId], references: [id])
+
+  // Professional Graph ownership
+  personNodes        PersonNode[]
+  relationships      Relationship[]  @relation("UserRelationships")
+  interactions       Interaction[]   @relation("UserInteractions")
+  projects           ProjectNode[]
+  decisions          DecisionLog[]
+  commitments        Commitment[]
+  topicInterests     TopicInterest[]
+
+  // Activity
+  messages           Message[]
+  meetings           Meeting[]
+  emails             EmailRecord[]
+  taskItems          TaskItem[]
+  calendarEvents     CalendarEvent[]
+  documents          DocumentRecord[]
+
+  // Intelligence
+  signals            Signal[]
+  insights           Insight[]
+  briefings          Briefing[]
+  alerts             Alert[]
+
+  // Career
+  skillAssessments   SkillAssessment[]
+  visibilityEvents   VisibilityEvent[]
+  careerGoals        CareerGoal[]
+  influenceScores    InfluenceScore[]
+
+  // Team (as manager)
+  managedTeamMembers TeamMembership[] @relation("ManagerOf")
+
+  // Knowledge
+  knowledgeNodes     KnowledgeNode[]
+
+  // Time-series
+  activityMetrics    ActivityMetric[]
+  energyScores       EnergyScore[]
+  focusSessions      FocusSession[]
+
+  // Connectors
+  oauthTokens        OAuthToken[]
+
+  // Notifications
+  notifications      Notification[]
+
+  @@unique([orgId, email])
+  @@index([orgId])
+  @@map("users")
+}
+
+model UserPreferences {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @unique @db.Uuid
+
+  // Briefing preferences
+  briefingTime        String  @default("08:00") // HH:MM in user's timezone
+  briefingChannels    Json    @default("[]")     // which Slack channels to include
+  briefingDepth       BriefingDepth @default(STANDARD)
+
+  // Notification preferences
+  notifyVia           Json    @default("[\"in_app\", \"email\"]")
+  urgentNotifyVia     Json    @default("[\"in_app\", \"email\", \"slack\"]")
+  quietHoursStart     String? // HH:MM
+  quietHoursEnd       String? // HH:MM
+
+  // Deep work preferences
+  focusBlockDuration  Int     @default(120)  // preferred focus block in minutes
+  focusBlockDays      Json    @default("[1,2,3,4,5]") // which days to protect
+  maxMeetingsPerDay   Int     @default(6)
+
+  // Intelligence preferences
+  industryNewsEnabled Boolean @default(true)
+  careerTrackingEnabled Boolean @default(true)
+  teamHealthEnabled   Boolean @default(false) // only for managers
+  proactiveAlertsEnabled Boolean @default(true)
+
+  // Privacy
+  dmIngestionEnabled  Boolean @default(false) // opt-in for DM analysis
+  emailIngestionScope EmailScope @default(WORK_ONLY)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model Team {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  name      String
+  slug      String
+  parentId  String?  @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org       Organization   @relation(fields: [orgId], references: [id])
+  parent    Team?          @relation("TeamHierarchy", fields: [parentId], references: [id])
+  children  Team[]         @relation("TeamHierarchy")
+  members   TeamMembership[]
+
+  @@unique([orgId, slug])
+  @@index([orgId])
+  @@map("teams")
+}
+
+model TeamMembership {
+  id        String   @id @default(uuid()) @db.Uuid
+  teamId    String   @db.Uuid
+  userId    String   @db.Uuid
+  managerId String?  @db.Uuid
+  role      TeamRole @default(MEMBER)
+  joinedAt  DateTime @default(now())
+
+  team    Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user    User @relation("ManagerOf", fields: [managerId], references: [id])
+
+  @@unique([teamId, userId])
+  @@map("team_memberships")
+}
+
+// ============================================================================
+// DOMAIN 2: PROFESSIONAL GRAPH
+// ============================================================================
+
+/// Represents any person in the user's professional network
+/// (colleagues, external contacts, stakeholders)
+model PersonNode {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  userId          String   @db.Uuid  // which user's graph this belongs to
+  externalId      String?  // id from source system
+  source          DataSource
+  name            String
+  email           String?
+  title           String?
+  company         String?
+  department      String?
+  avatarUrl       String?
+  isInternal      Boolean  @default(false) // same org?
+  isActive        Boolean  @default(true)
+
+  // Graph metrics (updated by workers)
+  importanceScore    Float    @default(0)  // 0-1, how important to this user
+  interactionFreq    Float    @default(0)  // interactions per week
+  lastInteractionAt  DateTime?
+  sentimentAvg       Float    @default(0)  // rolling avg sentiment (-1 to 1)
+  communicationStyle Json     @default("{}") // learned preferences
+
+  // Embedding for semantic search
+  embedding       Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User           @relation(fields: [userId], references: [id])
+  relationships Relationship[] @relation("PersonRelationships")
+  interactions  Interaction[]  @relation("PersonInteractions")
+  influenceScores InfluenceScore[]
+  commitments    Commitment[]  @relation("CommitmentOwner")
+  mentions       EntityMention[]
+
+  @@unique([userId, email])
+  @@index([orgId])
+  @@index([userId])
+  @@index([userId, importanceScore(sort: Desc)])
+  @@map("person_nodes")
+}
+
+/// Edge in the professional graph between a user and a person
+model Relationship {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  userId          String   @db.Uuid
+  personNodeId    String   @db.Uuid
+  type            RelationshipType
+  strength        Float    @default(0.5)  // 0-1, computed from interactions
+  healthScore     Float    @default(0.5)  // 0-1, factoring sentiment + recency
+  politicalCapital Float   @default(0.5)  // 0-1, trust/goodwill balance
+  isDecisionMaker Boolean  @default(false) // for user's goals
+  notes           String?  // user-added context
+
+  // Decay tracking
+  baselineFrequency Float  @default(0)    // expected interaction frequency
+  currentFrequency  Float  @default(0)    // actual recent frequency
+  decayAlertSent    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User       @relation("UserRelationships", fields: [userId], references: [id])
+  person     PersonNode @relation("PersonRelationships", fields: [personNodeId], references: [id])
+
+  @@unique([userId, personNodeId])
+  @@index([orgId])
+  @@index([userId, healthScore])
+  @@map("relationships")
+}
+
+/// A discrete interaction between the user and other people
+model Interaction {
+  id           String          @id @default(uuid()) @db.Uuid
+  orgId        String          @db.Uuid
+  userId       String          @db.Uuid
+  type         InteractionType
+  source       DataSource
+  sourceId     String?         // external ID in source system
+  timestamp    DateTime
+  durationMin  Int?            // for meetings
+  sentiment    Float?          // -1 to 1
+  topics       String[]        // extracted topic tags
+  summary      String?         // AI-generated summary
+  hasDecision  Boolean         @default(false)
+  hasCommitment Boolean        @default(false)
+  rawContent   String?         // original text (encrypted at rest)
+
+  // Embedding for semantic retrieval
+  embedding    Unsupported("vector(1536)")?
+
+  createdAt    DateTime @default(now())
+
+  user         User          @relation("UserInteractions", fields: [userId], references: [id])
+  participants InteractionParticipant[]
+  entityMentions EntityMention[]
+
+  @@index([orgId])
+  @@index([userId, timestamp(sort: Desc)])
+  @@index([userId, type, timestamp(sort: Desc)])
+  @@map("interactions")
+}
+
+model InteractionParticipant {
+  id            String @id @default(uuid()) @db.Uuid
+  interactionId String @db.Uuid
+  personNodeId  String @db.Uuid
+  role          String @default("participant") // "organizer", "presenter", etc.
+
+  interaction InteractionParticipant @relation(fields: [interactionId], references: [id], onDelete: Cascade)
+
+  @@unique([interactionId, personNodeId])
+  @@map("interaction_participants")
+}
+
+/// Projects tracked in the user's graph
+model ProjectNode {
+  id           String        @id @default(uuid()) @db.Uuid
+  orgId        String        @db.Uuid
+  userId       String        @db.Uuid
+  externalId   String?       // Linear project ID, Jira key, etc.
+  source       DataSource
+  name         String
+  description  String?
+  status       ProjectStatus @default(ACTIVE)
+  priority     Int           @default(3) // 1=urgent, 4=low
+  startDate    DateTime?
+  targetDate   DateTime?
+  completedAt  DateTime?
+
+  // Velocity & health (updated by workers)
+  velocityTrend    Float?   // positive = accelerating
+  scopeCreepRatio  Float?   // added_tasks / original_tasks
+  healthScore      Float?   // 0-1 composite
+  blockerCount     Int      @default(0)
+
+  // OKR alignment
+  okrId            String?  // linked OKR/goal
+  strategicWeight  Float    @default(0) // how much this matters strategically
+
+  embedding        Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User              @relation(fields: [userId], references: [id])
+  tasks        TaskItem[]
+  dependencies ProjectDependency[] @relation("DependentProject")
+  dependedOnBy ProjectDependency[] @relation("DependencyTarget")
+  decisions    DecisionLog[]
+  milestones   ProjectMilestone[]
+
+  @@index([orgId])
+  @@index([userId, status])
+  @@map("project_nodes")
+}
+
+model ProjectDependency {
+  id               String @id @default(uuid()) @db.Uuid
+  dependentId      String @db.Uuid  // this project depends on...
+  dependencyId     String @db.Uuid  // ...this project
+  type             String @default("blocks") // "blocks", "informs", "requires"
+  status           String @default("active") // "active", "resolved"
+  description      String?
+
+  dependent   ProjectNode @relation("DependentProject", fields: [dependentId], references: [id])
+  dependency  ProjectNode @relation("DependencyTarget", fields: [dependencyId], references: [id])
+
+  @@unique([dependentId, dependencyId])
+  @@map("project_dependencies")
+}
+
+model ProjectMilestone {
+  id         String    @id @default(uuid()) @db.Uuid
+  projectId  String    @db.Uuid
+  name       String
+  targetDate DateTime?
+  completedAt DateTime?
+  status     String    @default("pending")
+
+  project ProjectNode @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_milestones")
+}
+
+/// Tracked decisions for institutional memory
+model DecisionLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  orgId        String   @db.Uuid
+  userId       String   @db.Uuid
+  projectId    String?  @db.Uuid
+  title        String
+  description  String   // what was decided
+  rationale    String?  // why it was decided
+  alternatives Json     @default("[]") // options that were considered
+  participants String[] // who was involved
+  madeAt       DateTime
+  reversedAt   DateTime? // if decision was later reversed
+  impact       String?   // observed downstream impact
+  source       DataSource
+  sourceId     String?   // link to source (meeting, thread, etc.)
+
+  // For semantic search
+  embedding    Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User         @relation(fields: [userId], references: [id])
+  project ProjectNode? @relation(fields: [projectId], references: [id])
+  outcomes DecisionOutcome[]
+
+  @@index([orgId])
+  @@index([userId, madeAt(sort: Desc)])
+  @@map("decision_log")
+}
+
+model DecisionOutcome {
+  id          String   @id @default(uuid()) @db.Uuid
+  decisionId  String   @db.Uuid
+  observedAt  DateTime
+  description String
+  sentiment   String   @default("neutral") // "positive", "negative", "neutral"
+
+  decision DecisionLog @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+
+  @@map("decision_outcomes")
+}
+
+/// Tracked promises and commitments
+model Commitment {
+  id            String           @id @default(uuid()) @db.Uuid
+  orgId         String           @db.Uuid
+  userId        String           @db.Uuid
+  ownerId       String?          @db.Uuid  // PersonNode who made the commitment
+  description   String
+  dueDate       DateTime?
+  status        CommitmentStatus @default(OPEN)
+  source        DataSource
+  sourceId      String?
+  extractedFrom String?          // the raw text this was extracted from
+  confidence    Float            @default(0.8) // AI extraction confidence
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id])
+  owner PersonNode? @relation("CommitmentOwner", fields: [ownerId], references: [id])
+
+  @@index([orgId])
+  @@index([userId, status, dueDate])
+  @@map("commitments")
+}
+
+/// Topic clusters that the user is involved in
+model TopicInterest {
+  id        String @id @default(uuid()) @db.Uuid
+  userId    String @db.Uuid
+  topic     String // normalized topic label
+  weight    Float  @default(0.5) // how much this topic matters
+  lastSeen  DateTime
+  frequency Float  @default(0)   // mentions per week
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, topic])
+  @@map("topic_interests")
+}
+
+// ============================================================================
+// DOMAIN 3: ACTIVITY & COMMUNICATION
+// ============================================================================
+
+model Message {
+  id           String     @id @default(uuid()) @db.Uuid
+  orgId        String     @db.Uuid
+  userId       String     @db.Uuid
+  source       DataSource
+  sourceId     String     // Slack message ID, etc.
+  channelId    String?    // Slack channel, email thread, etc.
+  channelName  String?
+  threadId     String?
+  authorEmail  String?
+  authorName   String?
+  content      String     // sanitized content
+  timestamp    DateTime
+  isFromUser   Boolean    @default(false)
+  sentiment    Float?
+  urgencyScore Float?     // 0-1
+  intentClass  MessageIntent?
+
+  // Triage status
+  triageStatus TriageStatus @default(UNPROCESSED)
+  needsReply   Boolean      @default(false)
+  repliedAt    DateTime?
+
+  embedding    Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+
+  user           User            @relation(fields: [userId], references: [id])
+  entityMentions EntityMention[]
+  actionItems    TaskItem[]
+
+  @@unique([userId, source, sourceId])
+  @@index([orgId])
+  @@index([userId, timestamp(sort: Desc)])
+  @@index([userId, triageStatus])
+  @@index([userId, needsReply])
+  @@map("messages")
+}
+
+model Meeting {
+  id             String   @id @default(uuid()) @db.Uuid
+  orgId          String   @db.Uuid
+  userId         String   @db.Uuid
+  source         DataSource
+  sourceId       String   // Calendar event ID
+  title          String
+  description    String?
+  startTime      DateTime
+  endTime        DateTime
+  attendeeCount  Int      @default(0)
+  attendees      Json     @default("[]") // [{email, name, responseStatus}]
+  location       String?
+  meetingLink    String?
+  isRecurring    Boolean  @default(false)
+  recurringId    String?
+
+  // Meeting intelligence
+  prepNotes       String?  // AI-generated prep context
+  transcript      String?  // meeting transcript (if available)
+  summary         String?  // AI-generated summary
+  actionItems     Json     @default("[]")
+  decisionsCount  Int      @default(0)
+  efficiencyScore Float?   // (decisions + actions) / (duration * attendees)
+
+  // Pre-meeting prep (generated by worker)
+  contextBundle   Json?    // last meeting notes, open items, attendee context
+
+  embedding       Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, source, sourceId])
+  @@index([orgId])
+  @@index([userId, startTime(sort: Desc)])
+  @@map("meetings")
+}
+
+model EmailRecord {
+  id           String     @id @default(uuid()) @db.Uuid
+  orgId        String     @db.Uuid
+  userId       String     @db.Uuid
+  source       DataSource @default(GMAIL)
+  sourceId     String     // Gmail message ID
+  threadId     String?    // Gmail thread ID
+  subject      String
+  fromEmail    String
+  fromName     String?
+  toEmails     String[]
+  ccEmails     String[]
+  snippet      String?    // first ~200 chars
+  timestamp    DateTime
+  isFromUser   Boolean    @default(false)
+  labels       String[]
+  hasAttachment Boolean   @default(false)
+
+  // Intelligence
+  urgencyScore Float?
+  intentClass  MessageIntent?
+  needsReply   Boolean   @default(false)
+  repliedAt    DateTime?
+  sentiment    Float?
+
+  embedding    Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, sourceId])
+  @@index([orgId])
+  @@index([userId, timestamp(sort: Desc)])
+  @@index([userId, needsReply])
+  @@map("email_records")
+}
+
+model TaskItem {
+  id           String     @id @default(uuid()) @db.Uuid
+  orgId        String     @db.Uuid
+  userId       String     @db.Uuid
+  projectId    String?    @db.Uuid
+  messageId    String?    @db.Uuid  // extracted from this message
+  source       DataSource
+  sourceId     String?    // Linear issue ID, etc.
+  title        String
+  description  String?
+  status       TaskStatus @default(TODO)
+  priority     Int        @default(3)
+  assigneeEmail String?
+  dueDate      DateTime?
+  completedAt  DateTime?
+  estimateHours Float?
+  tags         String[]
+
+  // AI-computed priority
+  computedPriority Float?  // 0-1, factoring urgency, importance, dependencies
+  priorityReason   String? // why this was ranked here
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User         @relation(fields: [userId], references: [id])
+  project ProjectNode? @relation(fields: [projectId], references: [id])
+  message Message?     @relation(fields: [messageId], references: [id])
+
+  @@index([orgId])
+  @@index([userId, status])
+  @@index([userId, computedPriority(sort: Desc)])
+  @@map("task_items")
+}
+
+model CalendarEvent {
+  id           String   @id @default(uuid()) @db.Uuid
+  orgId        String   @db.Uuid
+  userId       String   @db.Uuid
+  sourceId     String
+  title        String
+  startTime    DateTime
+  endTime      DateTime
+  isAllDay     Boolean  @default(false)
+  attendeeCount Int     @default(0)
+  isRecurring  Boolean  @default(false)
+  isFocusTime  Boolean  @default(false) // marked as focus/deep work
+  responseStatus String? // accepted, declined, tentative
+
+  // Computed
+  contextSwitchCost Int? // minutes of ramp-back time after this meeting
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, sourceId])
+  @@index([orgId])
+  @@index([userId, startTime])
+  @@map("calendar_events")
+}
+
+model DocumentRecord {
+  id        String     @id @default(uuid()) @db.Uuid
+  orgId     String     @db.Uuid
+  userId    String     @db.Uuid
+  source    DataSource
+  sourceId  String
+  sourceUrl String?
+  title     String
+  content   String?    // extracted text content
+  lastModified DateTime?
+  modifiedBy   String?
+
+  embedding Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, source, sourceId])
+  @@index([orgId])
+  @@map("document_records")
+}
+
+// ============================================================================
+// DOMAIN 4: INTELLIGENCE LAYER
+// ============================================================================
+
+/// Raw signals detected by pattern detectors
+model Signal {
+  id           String      @id @default(uuid()) @db.Uuid
+  orgId        String      @db.Uuid
+  userId       String      @db.Uuid
+  type         SignalType
+  subType      String?     // e.g., "velocity_drop", "sentiment_shift"
+  severity     Severity    @default(MEDIUM)
+  score        Float       // 0-1 confidence/importance
+  title        String
+  description  String
+  evidence     Json        @default("[]") // supporting data points
+  affectedEntities Json    @default("[]") // {type, id, name}[]
+  detectedAt   DateTime    @default(now())
+  expiresAt    DateTime?   // when signal becomes stale
+  acknowledgedAt DateTime?
+  dismissedAt  DateTime?
+
+  // Source pattern detector
+  detectorName String      // e.g., "VelocityDropDetector"
+  detectorVersion String   @default("1.0")
+
+  user     User      @relation(fields: [userId], references: [id])
+  insights Insight[] @relation("SignalInsights")
+
+  @@index([orgId])
+  @@index([userId, detectedAt(sort: Desc)])
+  @@index([userId, type, severity])
+  @@map("signals")
+}
+
+/// AI-synthesized insights from one or more signals
+model Insight {
+  id               String       @id @default(uuid()) @db.Uuid
+  orgId            String       @db.Uuid
+  userId           String       @db.Uuid
+  type             InsightType
+  priority         InsightPriority @default(MEDIUM)
+  title            String
+  body             String       // markdown-formatted insight
+  recommendedActions Json       @default("[]") // [{action, label, metadata}]
+  deliveryChannel  DeliveryChannel @default(IN_APP)
+  deliveredAt      DateTime?
+  readAt           DateTime?
+  actedOnAt        DateTime?
+  dismissedAt      DateTime?
+  feedbackScore    Int?         // 1-5 user rating
+
+  // Context
+  relatedEntityType String?    // "person", "project", "decision"
+  relatedEntityId   String?
+
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id])
+  signals Signal[] @relation("SignalInsights")
+
+  @@index([orgId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, type, priority])
+  @@map("insights")
+}
+
+/// Industry-level signals from external data
+model IndustrySignal {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  eventType       IndustryEventType
+  title           String
+  summary         String
+  sourceUrl       String?
+  sourceName      String?  // "TechCrunch", "SEC EDGAR", etc.
+  publishedAt     DateTime
+  company         String?  // which company this is about
+  companyDomain   String?
+
+  // Relevance scoring
+  relevanceScore  Float    @default(0) // 0-1, org-specific
+  impactAssessment String?  // AI-generated impact analysis
+  affectedTeams   String[] // which internal teams should care
+  recommendedActions Json   @default("[]")
+  deliveryPriority DeliveryPriority @default(DAILY_BRIEFING)
+
+  // Processing status
+  processedAt     DateTime?
+  deliveredToUsers String[] @default([]) // user IDs who've seen this
+
+  // Embeddings for deduplication and search
+  embedding       Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId, publishedAt(sort: Desc)])
+  @@index([orgId, eventType])
+  @@index([orgId, relevanceScore(sort: Desc)])
+  @@map("industry_signals")
+}
+
+/// Competitor-specific tracking events
+model CompetitorEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  competitorName  String
+  competitorDomain String?
+  eventType       CompetitorEventType
+  title           String
+  description     String
+  sourceUrl       String?
+  detectedAt      DateTime @default(now())
+  relevanceScore  Float    @default(0)
+  impactAnalysis  String?  // AI-generated
+  affectedProducts String[] // internal products affected
+  suggestedResponse String? // AI-suggested strategic response
+
+  embedding       Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+
+  @@index([orgId, detectedAt(sort: Desc)])
+  @@index([orgId, competitorDomain])
+  @@map("competitor_events")
+}
+
+// ============================================================================
+// DOMAIN 5: CAREER & GROWTH
+// ============================================================================
+
+model CareerGoal {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  title       String   // e.g., "Get promoted to Staff Engineer"
+  description String?
+  targetDate  DateTime?
+  status      String   @default("active")
+  progressPct Float    @default(0)
+
+  // AI-tracked requirements
+  requirements Json    @default("[]") // [{skill, currentLevel, requiredLevel, gap}]
+  visibilityGaps Json  @default("[]") // stakeholders who don't know your work
+  suggestedActions Json @default("[]") // AI-recommended actions
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("career_goals")
+}
+
+model SkillAssessment {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  skill      String   // e.g., "system_design", "cross_functional_leadership"
+  level      Float    // 0-1 assessed level
+  evidence   Json     @default("[]") // what data supports this assessment
+  assessedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("skill_assessments")
+}
+
+model VisibilityEvent {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  type         String   // "mentioned_in_leadership", "presented_at", "cited_in_doc"
+  description  String
+  audience     String[] // who saw this
+  audienceSize Int      @default(0)
+  impactScore  Float    @default(0) // how much visibility this provides
+  timestamp    DateTime
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, timestamp(sort: Desc)])
+  @@map("visibility_events")
+}
+
+model InfluenceScore {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  personNodeId String   @db.Uuid
+  dimension    String   // "promotion", "budget", "headcount", "strategy"
+  score        Float    // 0-1 influence level
+  reasoning    String?
+  assessedAt   DateTime @default(now())
+
+  user   User       @relation(fields: [userId], references: [id])
+  person PersonNode @relation(fields: [personNodeId], references: [id])
+
+  @@unique([userId, personNodeId, dimension])
+  @@map("influence_scores")
+}
+
+// ============================================================================
+// DOMAIN 6: KNOWLEDGE BASE
+// ============================================================================
+
+/// Atomic knowledge units extracted from interactions
+model KnowledgeNode {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @db.Uuid
+  userId      String   @db.Uuid
+  type        KnowledgeType
+  title       String
+  content     String
+  source      DataSource
+  sourceId    String?
+  sourceUrl   String?
+  extractedAt DateTime @default(now())
+  tags        String[]
+  confidence  Float    @default(0.8)
+
+  // For tribal knowledge
+  contextWhy  String?  // why this knowledge matters
+  validUntil  DateTime? // when this might become stale
+
+  embedding   Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User            @relation(fields: [userId], references: [id])
+  edges KnowledgeEdge[] @relation("KnowledgeFrom")
+  edgesTo KnowledgeEdge[] @relation("KnowledgeTo")
+
+  @@index([orgId])
+  @@index([userId, type])
+  @@map("knowledge_nodes")
+}
+
+model KnowledgeEdge {
+  id       String @id @default(uuid()) @db.Uuid
+  fromId   String @db.Uuid
+  toId     String @db.Uuid
+  relation String // "relates_to", "supersedes", "depends_on", "contradicts"
+  weight   Float  @default(0.5)
+
+  from KnowledgeNode @relation("KnowledgeFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   KnowledgeNode @relation("KnowledgeTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId, relation])
+  @@map("knowledge_edges")
+}
+
+// ============================================================================
+// DOMAIN 7: DECISION INTELLIGENCE
+// ============================================================================
+
+model DecisionBrief {
+  id               String   @id @default(uuid()) @db.Uuid
+  orgId            String   @db.Uuid
+  userId           String   @db.Uuid
+  title            String
+  question         String   // the decision to be made
+  status           String   @default("draft") // draft, shared, decided
+  decidedOption    String?  // which option was chosen
+
+  // Structured analysis
+  evidenceFor      Json     @default("[]") // [{point, source, strength}]
+  evidenceAgainst  Json     @default("[]")
+  options          Json     @default("[]") // [{name, pros, cons, risks}]
+  stakeholderMap   Json     @default("[]") // [{person, position, reasoning}]
+  historicalAnalogs Json    @default("[]") // similar past decisions + outcomes
+  externalContext  Json     @default("[]") // relevant industry signals
+
+  // Scenario modeling
+  scenarios        Json     @default("[]") // [{name, assumptions, projectedOutcome}]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([userId])
+  @@map("decision_briefs")
+}
+
+// ============================================================================
+// DOMAIN 8: TIME-SERIES METRICS (TimescaleDB hypertables)
+// ============================================================================
+
+/// Per-user daily activity metrics
+model ActivityMetric {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  userId          String   @db.Uuid
+  date            DateTime @db.Date
+  messagesReceived Int     @default(0)
+  messagesSent     Int     @default(0)
+  meetingsAttended Int     @default(0)
+  meetingHours     Float   @default(0)
+  focusHours       Float   @default(0)
+  contextSwitches  Int     @default(0)
+  tasksCompleted   Int     @default(0)
+  tasksCreated     Int     @default(0)
+  prsReviewed      Int     @default(0)
+  prsSubmitted     Int     @default(0)
+  emailsSent       Int     @default(0)
+  emailsReceived   Int     @default(0)
+  firstActivityAt  DateTime?
+  lastActivityAt   DateTime?
+
+  // Computed scores
+  productivityScore Float?  // composite 0-1
+  collaborationScore Float? // composite 0-1
+  strategicAlignmentScore Float? // how aligned with OKRs
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+  @@index([orgId])
+  @@index([userId, date(sort: Desc)])
+  @@map("activity_metrics")
+}
+
+model EnergyScore {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  userId    String   @db.Uuid
+  timestamp DateTime
+  score     Float    // 0-1 estimated energy level
+  source    String   // "activity_pattern", "self_report", "inferred"
+  factors   Json     @default("{}") // what contributed to this score
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, timestamp(sort: Desc)])
+  @@map("energy_scores")
+}
+
+model FocusSession {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @db.Uuid
+  userId      String   @db.Uuid
+  startTime   DateTime
+  endTime     DateTime?
+  durationMin Int?
+  interrupted Boolean  @default(false)
+  interruptionSource String?
+  quality     Float?   // 0-1 self-reported or inferred
+  taskType    String?  // "coding", "writing", "planning"
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, startTime(sort: Desc)])
+  @@map("focus_sessions")
+}
+
+// ============================================================================
+// DOMAIN 9: CROSS-COMPANY BENCHMARKS
+// ============================================================================
+
+model BenchmarkDatapoint {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  category        String   // "engineering_velocity", "meeting_load", "response_time"
+  metric          String   // specific metric name
+  value           Float
+  percentile      Float?   // where this org falls vs. peers
+  cohort          String   // "series_c_saas", "50_200_employees", etc.
+  measuredAt      DateTime @default(now())
+  isAnonymized    Boolean  @default(true)
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId, category])
+  @@map("benchmark_datapoints")
+}
+
+// ============================================================================
+// DOMAIN 10: INTEGRATION & INFRASTRUCTURE
+// ============================================================================
+
+model ConnectorConfig {
+  id           String          @id @default(uuid()) @db.Uuid
+  orgId        String          @db.Uuid
+  connector    ConnectorType
+  status       ConnectorStatus @default(DISCONNECTED)
+  config       Json            @default("{}") // connector-specific config
+  lastSyncAt   DateTime?
+  lastErrorAt  DateTime?
+  lastError    String?
+  syncCursor   String?         // pagination cursor for incremental sync
+  webhookId    String?         // registered webhook ID in external system
+  isEnabled    Boolean         @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@unique([orgId, connector])
+  @@map("connector_configs")
+}
+
+model OAuthToken {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  provider     String   // "google", "slack", "github", "linear", "notion"
+  accessToken  String   // encrypted
+  refreshToken String?  // encrypted
+  expiresAt    DateTime?
+  scopes       String[]
+  metadata     Json     @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, provider])
+  @@map("oauth_tokens")
+}
+
+model ApiKey {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @db.Uuid
+  name        String
+  keyHash     String   // bcrypt hash of the key
+  keyPrefix   String   // first 8 chars for identification
+  scopes      String[]
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId])
+  @@index([keyPrefix])
+  @@map("api_keys")
+}
+
+/// Entity mentions linking unstructured content to graph nodes
+model EntityMention {
+  id            String     @id @default(uuid()) @db.Uuid
+  entityType    String     // "person", "project", "company", "topic"
+  entityId      String     @db.Uuid
+  mentionSource String     // "message", "meeting", "email", "document"
+  mentionId     String     @db.Uuid
+  confidence    Float      @default(0.8)
+  context       String?    // surrounding text
+
+  // Polymorphic relations
+  personNode    PersonNode?  @relation(fields: [entityId], references: [id])
+  interaction   Interaction? @relation(fields: [mentionId], references: [id])
+  message       Message?     @relation(fields: [mentionId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([mentionSource, mentionId])
+  @@map("entity_mentions")
+}
+
+// ============================================================================
+// DOMAIN 11: NOTIFICATIONS & BRIEFINGS
+// ============================================================================
+
+model Briefing {
+  id          String       @id @default(uuid()) @db.Uuid
+  orgId       String       @db.Uuid
+  userId      String       @db.Uuid
+  type        BriefingType @default(DAILY)
+  date        DateTime     @db.Date
+  content     Json         // structured briefing content
+  status      String       @default("generated") // generated, delivered, read
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  // Sections
+  priorityInbox    Json @default("[]") // top items needing attention
+  meetingPrep      Json @default("[]") // upcoming meeting context
+  projectUpdates   Json @default("[]") // project health changes
+  industryIntel    Json @default("[]") // relevant external signals
+  relationshipAlerts Json @default("[]") // relationship health changes
+  strategicAlignment Json @default("{}") // OKR alignment check
+  wellbeingCheck   Json @default("{}") // energy/burnout indicators
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, type, date])
+  @@index([userId, date(sort: Desc)])
+  @@map("briefings")
+}
+
+model Alert {
+  id          String        @id @default(uuid()) @db.Uuid
+  orgId       String        @db.Uuid
+  userId      String        @db.Uuid
+  type        AlertType
+  severity    Severity
+  title       String
+  body        String
+  actions     Json          @default("[]") // available actions
+  channel     DeliveryChannel
+  status      AlertStatus   @default(PENDING)
+  deliveredAt DateTime?
+  readAt      DateTime?
+  actedOnAt   DateTime?
+  dismissedAt DateTime?
+
+  // Source tracking
+  sourceType  String?       // "signal", "pattern", "threshold"
+  sourceId    String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([orgId])
+  @@index([userId, status])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("alerts")
+}
+
+model Notification {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  type        String
+  title       String
+  body        String
+  link        String?  // deep link into the app
+  isRead      Boolean  @default(false)
+  readAt      DateTime?
+  metadata    Json     @default("{}")
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+// ============================================================================
+// DOMAIN 12: AUDIT & OBSERVABILITY
+// ============================================================================
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  userId    String?  @db.Uuid
+  action    String   // "data.read", "data.delete", "connector.sync", etc.
+  resource  String   // "person_node", "message", "oauth_token", etc.
+  resourceId String?
+  metadata  Json     @default("{}")
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId, timestamp(sort: Desc)])
+  @@index([orgId, userId, timestamp(sort: Desc)])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// DOMAIN 13: QUALITY LOOP & FEEDBACK SYSTEM
+// ============================================================================
+
+/// Every user interaction with the briefing/product is captured here
+/// to feed the self-improvement loop.
+model BriefingInteraction {
+  id           String   @id @default(uuid()) @db.Uuid
+  orgId        String   @db.Uuid
+  userId       String   @db.Uuid
+  briefingId   String   @db.Uuid
+  sectionType  String   // BriefingSectionType
+  signalType   String   // InteractionSignalType (viewed, clicked, dismissed, etc.)
+  timestamp    DateTime @default(now())
+
+  // Context about the interaction
+  metadata     Json     @default("{}")
+  // e.g., { itemId, urgencyScore, personName, topics, scrollDepth,
+  //         timeSpentSeconds, feedback: "positive"|"negative" }
+
+  @@index([userId, timestamp(sort: Desc)])
+  @@index([userId, sectionType])
+  @@index([userId, signalType])
+  @@map("briefing_interactions")
+}
+
+/// Quality evaluation results for each briefing
+model BriefingEvaluation {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  briefingId   String   @db.Uuid
+  evaluatedAt  DateTime @default(now())
+
+  // Overall scores
+  overallScore Float
+  sectionScores Json    @default("{}") // {sectionType: {relevance, actionability, ...}}
+
+  // What was rewritten
+  sectionsRewritten String[] @default([])
+  rewriteLog       Json     @default("[]") // [{sectionId, iteration, beforeScore, afterScore}]
+
+  // Cross-section issues detected
+  crossSectionIssues Json @default("[]")
+
+  // Processing metrics
+  evaluationTimeMs  Int  @default(0)
+  rewriteTimeMs     Int  @default(0)
+
+  @@index([userId, evaluatedAt(sort: Desc)])
+  @@map("briefing_evaluations")
+}
+
+/// Learned user preferences for briefing personalization
+/// Updated nightly by the learning loop
+model BriefingPreferences {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @db.Uuid
+  lastUpdated DateTime @updatedAt
+
+  // Section weights (0-1, learned from engagement)
+  sectionWeights Json   @default("{}") // {sectionType: weight}
+
+  // Content preferences
+  preferredLength  String @default("standard") // concise, standard, detailed
+  preferredItemCounts Json @default("{}") // {sectionType: count}
+  urgencyCalibration Float @default(0)   // adjustment to urgency scores
+
+  // Learned engagement patterns
+  highEngagementTopics String[] @default([])
+  lowEngagementTopics  String[] @default([])
+  highPriorityPeople   String[] @default([])
+
+  // Reading behavior
+  avgReadTimeSeconds     Float @default(180)
+  avgCompletionRate      Float @default(0.7)
+  avgSectionExpandRate   Float @default(0.3)
+
+  // Quality thresholds (learned from explicit feedback)
+  minRelevanceThreshold    Float @default(0.5)
+  minActionabilityThreshold Float @default(0.4)
+  minNoveltyThreshold      Float @default(0.3)
+
+  // Voice/style learning
+  communicationStyleProfile Json @default("{}") // learned from draft edits
+
+  @@map("briefing_preferences")
+}
+
+/// Stores draft edits for voice/style learning
+/// When a user edits an AI-generated draft, we store the before/after
+/// to learn their communication preferences over time.
+model DraftEditDelta {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  originalDraft String
+  editedDraft   String
+  editType      String   @default("message") // message, email, summary
+  recipient     String?  // who the draft is for (for per-person style learning)
+  editDistance   Float?   // normalized Levenshtein distance
+  timestamp     DateTime @default(now())
+
+  @@index([userId, timestamp(sort: Desc)])
+  @@map("draft_edit_deltas")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum CompanySize {
+  STARTUP    // 10-50
+  GROWTH     // 50-500
+  ENTERPRISE // 500+
+}
+
+enum PlanTier {
+  INDIVIDUAL
+  TEAM
+  ENTERPRISE
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum TeamRole {
+  LEAD
+  MEMBER
+}
+
+enum DataSource {
+  SLACK
+  GMAIL
+  GOOGLE_CALENDAR
+  LINEAR
+  GITHUB
+  NOTION
+  JIRA
+  CONFLUENCE
+  ASANA
+  HUBSPOT
+  SALESFORCE
+  FIGMA
+  ZOOM
+  MANUAL
+  SYSTEM
+}
+
+enum ConnectorType {
+  SLACK
+  GMAIL
+  GOOGLE_CALENDAR
+  LINEAR
+  GITHUB
+  NOTION
+  JIRA
+  CONFLUENCE
+  ASANA
+  HUBSPOT
+  SALESFORCE
+  FIGMA
+  ZOOM
+}
+
+enum ConnectorStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+  SYNCING
+  RATE_LIMITED
+}
+
+enum RelationshipType {
+  MANAGER
+  DIRECT_REPORT
+  PEER
+  SKIP_LEVEL
+  CROSS_FUNCTIONAL
+  EXTERNAL_CLIENT
+  EXTERNAL_VENDOR
+  EXTERNAL_PARTNER
+  MENTOR
+  MENTEE
+  EXECUTIVE
+}
+
+enum InteractionType {
+  SLACK_MESSAGE
+  SLACK_THREAD
+  EMAIL
+  MEETING
+  PR_REVIEW
+  DOCUMENT_COLLAB
+  TASK_ASSIGNMENT
+  TASK_COMMENT
+  ONE_ON_ONE
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  AT_RISK
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum CommitmentStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+  CANCELLED
+}
+
+enum MessageIntent {
+  NEEDS_REPLY
+  FYI
+  DECISION_REQUIRED
+  DELEGATION_CANDIDATE
+  SOCIAL
+  QUESTION
+  REQUEST
+  UPDATE
+  ESCALATION
+}
+
+enum TriageStatus {
+  UNPROCESSED
+  TRIAGED
+  ACTIONED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum SignalType {
+  RELATIONSHIP
+  PROJECT
+  PERSONAL
+  ORGANIZATIONAL
+  EXTERNAL
+  CAREER
+  TEAM_HEALTH
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum InsightType {
+  RISK_ALERT
+  OPPORTUNITY
+  RELATIONSHIP_HEALTH
+  STRATEGIC_DRIFT
+  BURNOUT_WARNING
+  DECISION_NEEDED
+  CAREER_GROWTH
+  TEAM_HEALTH
+  INDUSTRY_IMPACT
+  MEETING_OPTIMIZATION
+  COMMUNICATION_COACHING
+}
+
+enum InsightPriority {
+  URGENT
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum DeliveryChannel {
+  IN_APP
+  EMAIL
+  SLACK
+  PUSH
+}
+
+enum DeliveryPriority {
+  IMMEDIATE
+  DAILY_BRIEFING
+  WEEKLY_DIGEST
+}
+
+enum IndustryEventType {
+  FUNDING_ROUND
+  ACQUISITION
+  PRODUCT_LAUNCH
+  LEADERSHIP_CHANGE
+  PARTNERSHIP
+  LAYOFF
+  PRICING_CHANGE
+  REGULATION_CHANGE
+  EARNINGS_REPORT
+  SECURITY_BREACH
+  IPO_FILING
+  PATENT_FILING
+  OPEN_SOURCE_RELEASE
+}
+
+enum CompetitorEventType {
+  FEATURE_LAUNCH
+  PRICING_CHANGE
+  FUNDING
+  ACQUISITION
+  KEY_HIRE
+  KEY_DEPARTURE
+  PARTNERSHIP
+  CUSTOMER_WIN
+  CUSTOMER_LOSS
+  SECURITY_INCIDENT
+  API_CHANGE
+}
+
+enum AlertType {
+  RELATIONSHIP_DECAY
+  PROJECT_RISK
+  BURNOUT_WARNING
+  STRATEGIC_DRIFT
+  COMMITMENT_OVERDUE
+  COMPETITOR_MOVE
+  INDUSTRY_SHIFT
+  MEETING_PREP
+  DEADLINE_APPROACHING
+  TEAM_HEALTH
+  CAREER_OPPORTUNITY
+}
+
+enum AlertStatus {
+  PENDING
+  DELIVERED
+  READ
+  ACTED_ON
+  DISMISSED
+  EXPIRED
+}
+
+enum BriefingType {
+  DAILY
+  WEEKLY
+  MEETING_PREP
+  ON_DEMAND
+}
+
+enum BriefingDepth {
+  CONCISE
+  STANDARD
+  DETAILED
+}
+
+enum EmailScope {
+  WORK_ONLY
+  ALL
+  NONE
+}
+
+enum KnowledgeType {
+  FACT
+  DECISION
+  PROCESS
+  TRIBAL
+  LESSON_LEARNED
+  CONTEXT
+  PREFERENCE
+}

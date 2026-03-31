@@ -1,0 +1,85 @@
+# ============================================================================
+# CHIEF OF STAFF — Development Infrastructure
+# ============================================================================
+# PostgreSQL 16 with pgvector + TimescaleDB
+# Redis 7 (cache + job queue + pub/sub)
+# ============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL with pgvector and TimescaleDB extensions
+  # --------------------------------------------------------------------------
+  postgres:
+    image: timescale/timescaledb-ha:pg16
+    container_name: cos-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: chiefofstaff
+      POSTGRES_PASSWORD: chiefofstaff_dev
+      POSTGRES_DB: chiefofstaff
+    volumes:
+      - postgres_data:/home/postgres/pgdata/data
+      - ./init-extensions.sql:/docker-entrypoint-initdb.d/01-extensions.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chiefofstaff"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    command: >
+      postgres
+        -c shared_preload_libraries='timescaledb'
+        -c max_connections=200
+        -c shared_buffers=256MB
+        -c effective_cache_size=768MB
+        -c work_mem=16MB
+        -c maintenance_work_mem=128MB
+        -c random_page_cost=1.1
+        -c effective_io_concurrency=200
+        -c wal_buffers=16MB
+        -c max_wal_size=2GB
+
+  # --------------------------------------------------------------------------
+  # Redis 7 — Cache, job queue (BullMQ), and pub/sub
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: cos-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+        --appendonly yes
+        --appendfsync everysec
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # Redis Commander — GUI for debugging Redis
+  # --------------------------------------------------------------------------
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: cos-redis-commander
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      REDIS_HOSTS: "local:redis:6379"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
