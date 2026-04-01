@@ -1,5 +1,5 @@
-import { BriefingDashboard } from '@/components/briefing/briefing-dashboard';
+import { ConversationView } from '@/components/conversation/conversation-view';
 
 export default function HomePage() {
-  return <BriefingDashboard />;
+  return <ConversationView />;
 }
