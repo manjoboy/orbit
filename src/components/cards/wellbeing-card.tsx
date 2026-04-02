@@ -1,68 +1,47 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Heart, Clock, Zap, ArrowLeftRight } from 'lucide-react';
+import { Heart } from 'lucide-react';
 
 export function WellbeingCard({ data }: { data: Record<string, unknown> }) {
-  const wellbeing = data as {
-    score: number; meetings: string; focus: string; switches: number; recommendation?: string;
-  };
-
-  const scoreColor = wellbeing.score >= 70 ? 'text-emerald-400' : wellbeing.score >= 50 ? 'text-yellow-400' : 'text-red-400';
-  const barColor = wellbeing.score >= 70 ? 'bg-emerald-500' : wellbeing.score >= 50 ? 'bg-yellow-500' : 'bg-red-500';
+  const w = data as { score: number; meetings: string; focus: string; switches: number; recommendation?: string };
+  const sc = w.score >= 70 ? 'text-emerald-400/80' : w.score >= 50 ? 'text-amber-400/80' : 'text-red-400/80';
+  const bc = w.score >= 70 ? 'bg-emerald-500/50' : w.score >= 50 ? 'bg-amber-500/50' : 'bg-red-500/50';
 
   return (
-    <div className="rounded-2xl border border-[var(--color-border-primary)] bg-[var(--color-bg-secondary)] px-4 py-3">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Heart className="w-4 h-4 text-rose-400" />
-          <span className="text-[13px] font-semibold text-[var(--color-text-primary)]">Sustainability</span>
+    <div className="rounded-xl border border-[var(--color-border-subtle)] px-3.5 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <Heart className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+          <span className="text-[12px] font-medium text-[var(--color-text-secondary)]">Sustainability</span>
         </div>
-        <div className="flex items-baseline gap-1">
-          <span className={cn('text-[20px] font-bold', scoreColor)}>{wellbeing.score}</span>
-          <span className="text-[11px] text-[var(--color-text-muted)]">/100</span>
+        <div className="flex items-baseline gap-0.5">
+          <span className={cn('text-[16px] font-semibold tabular-nums', sc)}>{w.score}</span>
+          <span className="text-[10px] text-[var(--color-text-muted)]">/100</span>
         </div>
       </div>
-
-      {/* Score bar */}
-      <div className="h-1.5 bg-[var(--color-bg-primary)] rounded-full overflow-hidden mb-3">
-        <div className={cn('h-full rounded-full transition-all duration-700', barColor)} style={{ width: `${wellbeing.score}%` }} />
+      <div className="h-[3px] bg-[var(--color-bg-elevated)] rounded-full overflow-hidden mb-2.5">
+        <div className={cn('h-full rounded-full', bc)} style={{ width: `${w.score}%` }} />
       </div>
-
-      {/* Metrics */}
-      <div className="grid grid-cols-3 gap-2 mb-3">
-        <Metric icon={Clock} label="Meetings" value={wellbeing.meetings} warn={parseFloat(wellbeing.meetings) > 5} />
-        <Metric icon={Zap} label="Focus" value={wellbeing.focus} warn={parseFloat(wellbeing.focus) < 2} />
-        <Metric icon={ArrowLeftRight} label="Switches" value={String(wellbeing.switches)} warn={wellbeing.switches > 12} />
+      <div className="grid grid-cols-3 gap-2 text-center mb-2.5">
+        <Metric label="Meetings" value={w.meetings} warn={parseFloat(w.meetings) > 5} />
+        <Metric label="Focus" value={w.focus} warn={parseFloat(w.focus) < 2} />
+        <Metric label="Switches" value={String(w.switches)} warn={w.switches > 12} />
       </div>
-
-      {/* Recommendation */}
-      {wellbeing.recommendation && (
-        <div className={cn(
-          'px-3 py-2 rounded-xl text-[11px] leading-relaxed',
-          wellbeing.score < 60
-            ? 'bg-red-500/5 border border-red-500/10 text-red-300/80'
-            : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)]'
-        )}>
-          {wellbeing.recommendation}
-        </div>
+      {w.recommendation && (
+        <p className="text-[11px] text-[var(--color-text-tertiary)] leading-relaxed px-2.5 py-2 rounded-lg bg-[var(--color-bg-tertiary)]">
+          {w.recommendation}
+        </p>
       )}
     </div>
   );
 }
 
-function Metric({ icon: Icon, label, value, warn }: {
-  icon: React.ComponentType<{ className?: string }>; label: string; value: string; warn: boolean;
-}) {
+function Metric({ label, value, warn }: { label: string; value: string; warn: boolean }) {
   return (
-    <div className={cn(
-      'flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-[var(--color-bg-tertiary)]',
-      warn && 'ring-1 ring-amber-500/20'
-    )}>
-      <Icon className={cn('w-3 h-3', warn ? 'text-amber-400' : 'text-[var(--color-text-muted)]')} />
-      <span className={cn('text-[13px] font-semibold', warn ? 'text-amber-400' : 'text-[var(--color-text-primary)]')}>{value}</span>
-      <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-wider">{label}</span>
+    <div className="py-1.5 rounded-md bg-[var(--color-bg-tertiary)]">
+      <div className={cn('text-[13px] font-semibold tabular-nums', warn ? 'text-amber-400/80' : 'text-[var(--color-text-primary)]')}>{value}</div>
+      <div className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-wider mt-0.5">{label}</div>
     </div>
   );
 }
