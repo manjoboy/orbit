@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Chief of Staff',
-  description: 'Your personal intelligence layer for work',
+  title: 'Orbit',
+  description: 'Your professional world, connected',
 };
 
 export default function RootLayout({

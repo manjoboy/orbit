@@ -1,7 +1,3 @@
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="h-screen overflow-hidden bg-[var(--color-bg-primary)]">
-      {children}
-    </div>
-  );
+  return <div className="h-screen overflow-hidden bg-[var(--color-bg-primary)]">{children}</div>;
 }

@@ -1,5 +1,5 @@
-import { ConversationView } from '@/components/conversation/conversation-view';
+import { OrbitApp } from '@/components/orbit-app';
 
 export default function HomePage() {
-  return <ConversationView />;
+  return <OrbitApp />;
 }
