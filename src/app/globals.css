@@ -89,3 +89,80 @@ body::before {
   background-size: 200% 100%;
   animation: shimmer 1.8s ease-in-out infinite;
 }
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-slide-down { animation: slide-down 200ms var(--ease-out) forwards; }
+
+@keyframes check-pop {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-check-pop { animation: check-pop 400ms var(--ease-out) forwards; }
+
+@keyframes typing-dot {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+.animate-typing-dot-1 { animation: typing-dot 1.2s ease-in-out infinite; }
+.animate-typing-dot-2 { animation: typing-dot 1.2s ease-in-out infinite 0.2s; }
+.animate-typing-dot-3 { animation: typing-dot 1.2s ease-in-out infinite 0.4s; }
+
+/* ─── Network Graph ─── */
+
+.network-graph-container {
+  --nw-emerald: rgba(52, 211, 153, 0.7);
+  --nw-emerald-fill: rgba(52, 211, 153, 0.08);
+  --nw-amber: rgba(251, 191, 36, 0.7);
+  --nw-amber-fill: rgba(251, 191, 36, 0.08);
+  --nw-red: rgba(248, 113, 113, 0.7);
+  --nw-red-fill: rgba(248, 113, 113, 0.08);
+}
+
+@keyframes nw-node-fade {
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.nw-node-fade-in {
+  opacity: 0;
+  animation: nw-node-fade 400ms var(--ease-out) forwards;
+}
+
+@keyframes nw-line-draw {
+  from { stroke-dashoffset: 500; opacity: 0; }
+  to   { stroke-dashoffset: 0; opacity: 0.25; }
+}
+.nw-line-draw-in {
+  stroke-dasharray: 500;
+  stroke-dashoffset: 500;
+  animation: nw-line-draw 600ms var(--ease-out) forwards;
+}
+
+@keyframes nw-tooltip-pop {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.nw-tooltip-fade-in {
+  animation: nw-tooltip-pop 150ms var(--ease-out) forwards;
+}
+
+/* ─── Mobile overlay for detail panel ─── */
+
+@keyframes slide-up-overlay {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.animate-slide-up-overlay {
+  animation: slide-up-overlay 300ms var(--ease-out) forwards;
+}
+
+@keyframes fade-in-backdrop {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fade-in-backdrop {
+  animation: fade-in-backdrop 200ms ease-out forwards;
+}
