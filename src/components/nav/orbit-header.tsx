@@ -9,7 +9,7 @@ export function OrbitHeader() {
   const [searchValue, setSearchValue] = useState('');
 
   return (
-    <header className="shrink-0 flex items-center gap-3 px-4 h-12 border-b border-[var(--color-border-subtle)]">
+    <header className="sticky top-0 z-40 shrink-0 flex items-center gap-3 px-4 h-12 border-b border-[var(--color-border-subtle)] backdrop-blur-xl bg-[var(--color-bg-primary)]/80">
       {/* Logo */}
       <div className="flex items-center gap-2 shrink-0">
         <div className="w-6 h-6 rounded-full bg-[var(--color-accent-subtle)] flex items-center justify-center">

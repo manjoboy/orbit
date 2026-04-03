@@ -26,7 +26,7 @@ export function ProjectHealthCard({ data }: { data: Record<string, unknown> }) {
             <div className="flex items-center gap-2.5 mt-1">
               <span className={cn('flex items-center gap-0.5 text-[11px]', tc)}><T className="w-3 h-3" />{p.velocity > 0 ? '+' : ''}{p.velocity}%</span>
               {p.blockers > 0 && <span className="flex items-center gap-0.5 text-[11px] text-amber-400/70"><AlertTriangle className="w-3 h-3" />{p.blockers}</span>}
-              {p.deadline && <span className="flex items-center gap-0.5 text-[11px] text-[var(--color-text-muted)]"><Clock className="w-3 h-3" />{p.deadline}d</span>}
+              {p.deadline !== undefined && p.deadline !== null && <span className="flex items-center gap-0.5 text-[11px] text-[var(--color-text-muted)]"><Clock className="w-3 h-3" />{p.deadline}d</span>}
             </div>
             <div className="mt-1.5 h-[3px] bg-[var(--color-bg-elevated)] rounded-full overflow-hidden">
               <div className={cn('h-full rounded-full', bc)} style={{ width: `${Math.round(p.health * 100)}%` }} />

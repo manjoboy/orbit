@@ -2,14 +2,53 @@
 
 import { cn } from '@/lib/utils';
 import { useOrbit } from '../orbit-app';
-import { X, Calendar, Users, Clock, AlertTriangle, Zap, TrendingUp, TrendingDown, Minus, MessageSquare, ExternalLink, ArrowRight } from 'lucide-react';
+import { X, Calendar, Users, Zap, TrendingUp, TrendingDown, Minus, MessageSquare, ExternalLink, ArrowRight } from 'lucide-react';
+
+// ─── Canvas data types ───
+
+interface MeetingData {
+  time?: string;
+  duration?: string;
+  attendeeCount?: number;
+  attendees?: Array<{ name: string; title?: string; health?: number }>;
+  anticipations?: Array<{ emoji: string; title: string; body: string }>;
+  openItems?: string[];
+  lastSummary?: string;
+}
+
+interface ProjectData {
+  name?: string;
+  health: number;
+  trend?: 'up' | 'down' | 'stable';
+  velocity: number;
+  blockers?: number;
+  deadline?: number;
+  status?: string;
+}
+
+interface IntelData {
+  type?: string;
+  company?: string;
+  relevance?: number;
+  summary?: string;
+  impact?: string;
+  action?: string;
+  sourceUrl?: string;
+}
+
+interface PersonData {
+  name?: string;
+  role?: string;
+  subtitle?: string;
+  action?: string;
+}
 
 export function DetailCanvas() {
   const { activePanel, setActivePanel } = useOrbit();
   if (!activePanel.type) return null;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full animate-slide-in-right">
       {/* Canvas header */}
       <div className="shrink-0 flex items-center justify-between px-5 h-12 border-b border-[var(--color-border-subtle)]">
         <span className="text-[13px] font-medium text-[var(--color-text-primary)] truncate">{activePanel.title}</span>
@@ -34,7 +73,7 @@ export function DetailCanvas() {
 
 // ─── Meeting Canvas ───
 function MeetingCanvas({ data }: { data: Record<string, unknown> }) {
-  const m = data as any;
+  const m = data as unknown as MeetingData;
   return (
     <div className="space-y-5">
       {/* Time & attendees */}
@@ -44,11 +83,11 @@ function MeetingCanvas({ data }: { data: Record<string, unknown> }) {
       </div>
 
       {/* Attendees */}
-      {m.attendees && (
+      {m.attendees && m.attendees.length > 0 && (
         <div>
           <SectionLabel>Attendees</SectionLabel>
           <div className="flex flex-wrap gap-2 mt-2">
-            {(m.attendees as Array<{ name: string; title?: string; health?: number }>).map((a, i) => (
+            {m.attendees.map((a, i) => (
               <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--color-bg-tertiary)] border border-[var(--color-border-subtle)]">
                 <div className="w-6 h-6 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-[9px] font-bold text-[var(--color-text-secondary)]">
                   {a.name.split(' ').map(n => n[0]).join('')}
@@ -65,14 +104,14 @@ function MeetingCanvas({ data }: { data: Record<string, unknown> }) {
       )}
 
       {/* Anticipations */}
-      {m.anticipations && (m.anticipations as any[]).length > 0 && (
+      {m.anticipations && m.anticipations.length > 0 && (
         <div>
           <div className="flex items-center gap-1.5 mb-2">
             <Zap className="w-3 h-3 text-[var(--color-accent)]" />
             <SectionLabel>Heads up</SectionLabel>
           </div>
           <div className="space-y-2">
-            {(m.anticipations as Array<{ emoji: string; title: string; body: string }>).map((a, i) => (
+            {m.anticipations.map((a, i) => (
               <div key={i} className="px-3.5 py-3 rounded-xl bg-[var(--color-accent-subtle)] border border-[rgba(129,140,248,0.06)]">
                 <p className="text-[12px] font-medium text-[var(--color-text-primary)]">{a.emoji} {a.title}</p>
                 <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1 leading-relaxed">{a.body}</p>
@@ -83,11 +122,11 @@ function MeetingCanvas({ data }: { data: Record<string, unknown> }) {
       )}
 
       {/* Open items */}
-      {m.openItems && (m.openItems as any[]).length > 0 && (
+      {m.openItems && m.openItems.length > 0 && (
         <div>
           <SectionLabel>Open from last time</SectionLabel>
           <ul className="mt-2 space-y-1.5">
-            {(m.openItems as string[]).map((item, i) => (
+            {m.openItems.map((item, i) => (
               <li key={i} className="flex items-start gap-2 text-[12px] text-[var(--color-text-tertiary)]">
                 <span className="w-1 h-1 rounded-full bg-amber-400/60 mt-1.5 shrink-0" />
                 {item}
@@ -110,9 +149,10 @@ function MeetingCanvas({ data }: { data: Record<string, unknown> }) {
 
 // ─── Project Canvas ───
 function ProjectCanvas({ data }: { data: Record<string, unknown> }) {
-  const p = data as any;
-  const hc = p.health >= 0.7 ? 'text-emerald-400' : p.health >= 0.4 ? 'text-amber-400' : 'text-red-400';
-  const bc = p.health >= 0.7 ? 'bg-emerald-500/50' : p.health >= 0.4 ? 'bg-amber-500/50' : 'bg-red-500/50';
+  const p = data as unknown as ProjectData;
+  const health = p.health ?? 0;
+  const hc = health >= 0.7 ? 'text-emerald-400' : health >= 0.4 ? 'text-amber-400' : 'text-red-400';
+  const bc = health >= 0.7 ? 'bg-emerald-500/50' : health >= 0.4 ? 'bg-amber-500/50' : 'bg-red-500/50';
   const T = p.trend === 'up' ? TrendingUp : p.trend === 'down' ? TrendingDown : Minus;
   const tc = p.trend === 'up' ? 'text-emerald-400/70' : p.trend === 'down' ? 'text-red-400/70' : 'text-[var(--color-text-muted)]';
 
@@ -120,7 +160,7 @@ function ProjectCanvas({ data }: { data: Record<string, unknown> }) {
     <div className="space-y-5">
       {/* Health score hero */}
       <div className="flex items-center gap-4">
-        <span className={cn('text-[42px] font-bold tabular-nums leading-none', hc)}>{Math.round(p.health * 100)}</span>
+        <span className={cn('text-[42px] font-bold tabular-nums leading-none', hc)}>{Math.round(health * 100)}</span>
         <div>
           <p className="text-[13px] text-[var(--color-text-secondary)]">Health score</p>
           <div className="flex items-center gap-2 mt-0.5">
@@ -129,13 +169,13 @@ function ProjectCanvas({ data }: { data: Record<string, unknown> }) {
         </div>
       </div>
       <div className="h-2 bg-[var(--color-bg-elevated)] rounded-full overflow-hidden">
-        <div className={cn('h-full rounded-full transition-all duration-700', bc)} style={{ width: `${Math.round(p.health * 100)}%` }} />
+        <div className={cn('h-full rounded-full transition-all duration-700', bc)} style={{ width: `${Math.round(health * 100)}%` }} />
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
-        <StatBox label="Blockers" value={String(p.blockers ?? 0)} warn={p.blockers > 0} />
-        <StatBox label="Deadline" value={p.deadline ? `${p.deadline}d` : '—'} warn={p.deadline && p.deadline < 14} />
+        <StatBox label="Blockers" value={String(p.blockers ?? 0)} warn={(p.blockers ?? 0) > 0} />
+        <StatBox label="Deadline" value={p.deadline ? `${p.deadline}d` : '\u2014'} warn={p.deadline !== undefined && p.deadline < 14} />
         <StatBox label="Status" value={p.status ?? 'Active'} warn={p.status === 'AT_RISK'} />
       </div>
 
@@ -152,7 +192,7 @@ function ProjectCanvas({ data }: { data: Record<string, unknown> }) {
 
 // ─── Intel Canvas ───
 function IntelCanvas({ data }: { data: Record<string, unknown> }) {
-  const s = data as any;
+  const s = data as unknown as IntelData;
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-2">
@@ -191,7 +231,7 @@ function IntelCanvas({ data }: { data: Record<string, unknown> }) {
 
 // ─── Person Canvas ───
 function PersonCanvas({ data }: { data: Record<string, unknown> }) {
-  const p = data as any;
+  const p = data as unknown as PersonData;
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">

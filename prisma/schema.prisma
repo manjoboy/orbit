@@ -308,7 +308,7 @@ model InteractionParticipant {
   personNodeId  String @db.Uuid
   role          String @default("participant") // "organizer", "presenter", etc.
 
-  interaction InteractionParticipant @relation(fields: [interactionId], references: [id], onDelete: Cascade)
+  interaction Interaction @relation(fields: [interactionId], references: [id], onDelete: Cascade)
 
   @@unique([interactionId, personNodeId])
   @@map("interaction_participants")

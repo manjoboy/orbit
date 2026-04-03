@@ -10,7 +10,7 @@ import { WellbeingCard } from '../cards/wellbeing-card';
 import { StatRowCard } from '../cards/stat-row-card';
 import { ActionPromptCard } from '../cards/action-prompt-card';
 
-export function MessageBubble({ message, isLatest }: { message: Message; isLatest: boolean }) {
+export function MessageBubble({ message, isLatest: _isLatest }: { message: Message; isLatest: boolean }) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end py-1.5 animate-fade-in">

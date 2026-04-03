@@ -32,14 +32,16 @@ export function ConversationView() {
 
     const msgs = CONVERSATION_MESSAGES;
     let i = 0;
+    let cancelled = false;
 
     function showNext() {
-      if (i >= msgs.length) return;
+      if (cancelled || i >= msgs.length) return;
       const msg = msgs[i];
       if (msg.role === 'ai') {
         setIsTyping(true);
         const delay = msg.cards ? 900 : 500;
         setTimeout(() => {
+          if (cancelled) return;
           setIsTyping(false);
           setMessages(prev => [...prev, msg]);
           i++;
@@ -53,16 +55,21 @@ export function ConversationView() {
     }
 
     setTimeout(showNext, 600);
+
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, isTyping]);
 
+  const replyTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
   function handleSend(text: string) {
     setMessages(prev => [...prev, { id: `user-${Date.now()}`, role: 'user', content: text, timestamp: new Date() }]);
     setIsTyping(true);
-    setTimeout(() => {
+    if (replyTimerRef.current) clearTimeout(replyTimerRef.current);
+    replyTimerRef.current = setTimeout(() => {
       setIsTyping(false);
       setMessages(prev => [...prev, {
         id: `ai-${Date.now()}`, role: 'ai',

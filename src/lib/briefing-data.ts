@@ -1,6 +1,120 @@
-import { Inbox, Calendar, FolderKanban, Newspaper, Users, Heart, MessageSquare, Mail, CheckSquare, GitPullRequest, AlertTriangle } from 'lucide-react';
+import { Inbox, Calendar, FolderKanban, Newspaper, Users, Heart, MessageSquare, Mail, CheckSquare, GitPullRequest } from 'lucide-react';
 
-export const BRIEFING_SECTIONS = [
+// ─── Types ───
+
+type IconComponent = React.ComponentType<{ className?: string }>;
+
+interface BriefingItemListItem {
+  icon: IconComponent;
+  from?: string;
+  time?: string;
+  title: string;
+  urgency: boolean;
+  panelType: string;
+}
+
+interface BriefingMeeting {
+  title: string;
+  time: string;
+  duration: string;
+  attendeeCount: number;
+  alertCount: number;
+  attendees: Array<{ name: string; title?: string; health?: number }>;
+  anticipations: Array<{ emoji: string; title: string; body: string }>;
+  openItems: string[];
+  lastSummary: string;
+}
+
+interface BriefingProject {
+  name: string;
+  health: number;
+  trend: 'up' | 'down' | 'stable';
+  velocity: number;
+  blockers: number;
+  deadline?: number;
+  status: string;
+}
+
+interface BriefingSignal {
+  type: string;
+  company?: string;
+  relevance: number;
+  title: string;
+  summary: string;
+  impact: string;
+  action: string;
+  sourceUrl?: string;
+}
+
+interface BriefingPerson {
+  name: string;
+  role: string;
+  subtitle: string;
+  days: number;
+  action: string;
+}
+
+interface BriefingMetric {
+  label: string;
+  value: string;
+  warn: boolean;
+}
+
+interface BriefingSectionBase {
+  id: string;
+  label: string;
+  icon: IconComponent;
+  count?: number;
+}
+
+interface ItemListSection extends BriefingSectionBase {
+  type: 'item-list';
+  items: BriefingItemListItem[];
+}
+
+interface MeetingListSection extends BriefingSectionBase {
+  type: 'meeting-list';
+  meetings: BriefingMeeting[];
+}
+
+interface ProjectListSection extends BriefingSectionBase {
+  type: 'project-list';
+  projects: BriefingProject[];
+}
+
+interface IntelListSection extends BriefingSectionBase {
+  type: 'intel-list';
+  signals: BriefingSignal[];
+}
+
+interface PeopleListSection extends BriefingSectionBase {
+  type: 'people-list';
+  people: BriefingPerson[];
+}
+
+interface WellbeingSection extends BriefingSectionBase {
+  type: 'wellbeing';
+  score: number;
+  metrics: BriefingMetric[];
+}
+
+interface AiMessageSection extends BriefingSectionBase {
+  type: 'ai-message';
+  message: string;
+}
+
+export type BriefingSection =
+  | ItemListSection
+  | MeetingListSection
+  | ProjectListSection
+  | IntelListSection
+  | PeopleListSection
+  | WellbeingSection
+  | AiMessageSection;
+
+// ─── Data ───
+
+export const BRIEFING_SECTIONS: BriefingSection[] = [
   // ─── Priority Inbox ───
   {
     id: 'inbox',

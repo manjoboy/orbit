@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { useOrbit } from '../orbit-app';
-import { MessageSquare, Mail, CheckSquare, GitPullRequest, AlertTriangle, Calendar, TrendingUp, TrendingDown, Minus, Users, Heart, Newspaper, Clock, ArrowRight, ChevronRight } from 'lucide-react';
-import { BRIEFING_SECTIONS } from '@/lib/briefing-data';
+import { useOrbit, type Section, type ActivePanel } from '../orbit-app';
+import { Calendar, TrendingUp, TrendingDown, Minus, Users, Newspaper, ChevronRight } from 'lucide-react';
+import { BRIEFING_SECTIONS, type BriefingSection } from '@/lib/briefing-data';
 
 export function BriefingStream() {
   const { setActivePanel, setActiveSection } = useOrbit();
@@ -18,13 +18,16 @@ export function BriefingStream() {
     hasStarted.current = true;
 
     let i = 0;
+    let cancelled = false;
     function showNext() {
-      if (i >= BRIEFING_SECTIONS.length) return;
+      if (cancelled || i >= BRIEFING_SECTIONS.length) return;
       setVisibleSections(prev => prev + 1);
       i++;
       setTimeout(showNext, 400);
     }
     setTimeout(showNext, 500);
+
+    return () => { cancelled = true; };
   }, []);
 
   // Auto-scroll
@@ -51,7 +54,7 @@ export function BriefingStream() {
 
         {/* Sections */}
         {sections.map((section, sIdx) => (
-          <div key={section.id} className="animate-slide-up" style={{ animationDelay: `${sIdx * 50}ms` }}>
+          <div key={section.id} className="animate-slide-up" style={{ opacity: 0, animationDelay: `${sIdx * 60}ms` }}>
             {/* Section label */}
             <div className="flex items-center gap-2 mb-2">
               <section.icon className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
@@ -72,8 +75,8 @@ export function BriefingStream() {
                   <button
                     key={i}
                     onClick={() => {
-                      setActivePanel({ type: item.panelType as any, title: item.title, data: item });
-                      setActiveSection(section.id as any);
+                      setActivePanel({ type: item.panelType as ActivePanel['type'], title: item.title, data: item as unknown as Record<string, unknown> });
+                      setActiveSection(section.id as Section);
                     }}
                     className={cn(
                       'w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors',
@@ -102,7 +105,7 @@ export function BriefingStream() {
                   <button
                     key={i}
                     onClick={() => {
-                      setActivePanel({ type: 'meeting', title: m.title, data: m });
+                      setActivePanel({ type: 'meeting', title: m.title, data: m as unknown as Record<string, unknown> });
                       setActiveSection('meetings');
                     }}
                     className={cn(
@@ -142,7 +145,7 @@ export function BriefingStream() {
                     <button
                       key={i}
                       onClick={() => {
-                        setActivePanel({ type: 'project', title: p.name, data: p });
+                        setActivePanel({ type: 'project', title: p.name, data: p as unknown as Record<string, unknown> });
                         setActiveSection('projects');
                       }}
                       className={cn(
@@ -156,7 +159,7 @@ export function BriefingStream() {
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className={cn('flex items-center gap-0.5 text-[10px]', tc)}><T className="w-2.5 h-2.5" />{p.velocity > 0 ? '+' : ''}{p.velocity}%</span>
                           {p.blockers > 0 && <span className="text-[10px] text-amber-400/70">{p.blockers} blocked</span>}
-                          {p.deadline && <span className="text-[10px] text-[var(--color-text-muted)]">{p.deadline}d</span>}
+                          {p.deadline != null && <span className="text-[10px] text-[var(--color-text-muted)]">{p.deadline}d</span>}
                         </div>
                       </div>
                       <div className="w-16 h-[3px] bg-[var(--color-bg-elevated)] rounded-full overflow-hidden shrink-0">
@@ -174,7 +177,7 @@ export function BriefingStream() {
                   <button
                     key={i}
                     onClick={() => {
-                      setActivePanel({ type: 'intel', title: s.title, data: s });
+                      setActivePanel({ type: 'intel', title: s.title, data: s as unknown as Record<string, unknown> });
                       setActiveSection('intel');
                     }}
                     className={cn(
@@ -202,7 +205,7 @@ export function BriefingStream() {
                   <button
                     key={i}
                     onClick={() => {
-                      setActivePanel({ type: 'person', title: p.name, data: p });
+                      setActivePanel({ type: 'person', title: p.name, data: p as unknown as Record<string, unknown> });
                       setActiveSection('people');
                     }}
                     className={cn(
@@ -228,13 +231,13 @@ export function BriefingStream() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[12px] text-[var(--color-text-secondary)]">Sustainability</span>
                   <span className={cn('text-[15px] font-semibold tabular-nums',
-                    section.score! >= 70 ? 'text-emerald-400/80' : section.score! >= 50 ? 'text-amber-400/80' : 'text-red-400/80'
-                  )}>{section.score}/100</span>
+                    (section.score ?? 0) >= 70 ? 'text-emerald-400/80' : (section.score ?? 0) >= 50 ? 'text-amber-400/80' : 'text-red-400/80'
+                  )}>{section.score ?? 0}/100</span>
                 </div>
                 <div className="h-[3px] bg-[var(--color-bg-elevated)] rounded-full overflow-hidden mb-2">
                   <div className={cn('h-full rounded-full',
-                    section.score! >= 70 ? 'bg-emerald-500/50' : section.score! >= 50 ? 'bg-amber-500/50' : 'bg-red-500/50'
-                  )} style={{ width: `${section.score}%` }} />
+                    (section.score ?? 0) >= 70 ? 'bg-emerald-500/50' : (section.score ?? 0) >= 50 ? 'bg-amber-500/50' : 'bg-red-500/50'
+                  )} style={{ width: `${section.score ?? 0}%` }} />
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   {section.metrics?.map((m, i) => (

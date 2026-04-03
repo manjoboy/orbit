@@ -2,9 +2,14 @@
 // MOCK DATA — Realistic briefing data for development
 // ============================================================================
 
+// NOTE: Date objects are computed at module evaluation time. In SSR contexts
+// this can produce hydration mismatches. Consumers should be aware that
+// `generatedAt` and meeting start/end times are snapshot values.
+const _now = typeof window === 'undefined' ? new Date('2026-04-02T08:00:00') : new Date();
+
 export const MOCK_BRIEFING = {
-  date: new Date().toISOString().split('T')[0],
-  generatedAt: new Date(),
+  date: _now.toISOString().split('T')[0],
+  generatedAt: _now,
   signalCount: 23,
   insightCount: 7,
   processingTimeMs: 3200,
@@ -23,7 +28,7 @@ export const MOCK_BRIEFING = {
       suggestedAction: 'Reply',
       deepLink: 'slack://channel/C04ABC123',
       from: 'Sarah Chen',
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      timestamp: new Date(_now.getTime() - 2 * 60 * 60 * 1000),
     },
     {
       id: 'pi-2',
@@ -37,7 +42,7 @@ export const MOCK_BRIEFING = {
       suggestedAction: 'Reply',
       deepLink: 'https://mail.google.com',
       from: 'David Park (CFO)',
-      timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000),
+      timestamp: new Date(_now.getTime() - 4 * 60 * 60 * 1000),
     },
     {
       id: 'pi-3',
@@ -51,7 +56,7 @@ export const MOCK_BRIEFING = {
       suggestedAction: 'Review',
       deepLink: 'https://linear.app/issue/ENG-1234',
       from: 'Jordan Liu',
-      timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000),
+      timestamp: new Date(_now.getTime() - 8 * 60 * 60 * 1000),
     },
     {
       id: 'pi-4',
@@ -65,7 +70,7 @@ export const MOCK_BRIEFING = {
       suggestedAction: 'Review',
       deepLink: 'https://github.com/decagon/platform/pull/847',
       from: 'Alex Rivera',
-      timestamp: new Date(Date.now() - 48 * 60 * 60 * 1000),
+      timestamp: new Date(_now.getTime() - 48 * 60 * 60 * 1000),
     },
     {
       id: 'pi-5',
@@ -79,7 +84,7 @@ export const MOCK_BRIEFING = {
       suggestedAction: 'Reply',
       deepLink: 'slack://channel/C04DEF456',
       from: 'Maya Patel',
-      timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000),
+      timestamp: new Date(_now.getTime() - 6 * 60 * 60 * 1000),
     },
     {
       id: 'pi-6',
@@ -92,7 +97,7 @@ export const MOCK_BRIEFING = {
       compositeScore: 0.65,
       suggestedAction: 'Review brief',
       deepLink: '/intelligence',
-      timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000),
+      timestamp: new Date(_now.getTime() - 3 * 60 * 60 * 1000),
     },
   ],
 
@@ -101,8 +106,8 @@ export const MOCK_BRIEFING = {
     {
       id: 'mtg-1',
       title: 'Engineering Standup',
-      startTime: new Date(new Date().setHours(9, 0, 0, 0)),
-      endTime: new Date(new Date().setHours(9, 15, 0, 0)),
+      startTime: new Date(new Date(_now).setHours(9, 0, 0, 0)),
+      endTime: new Date(new Date(_now).setHours(9, 15, 0, 0)),
       attendees: [
         { name: 'Sarah Chen', title: 'Staff Engineer', relationshipHealth: 0.85 },
         { name: 'Alex Rivera', title: 'Senior Engineer', relationshipHealth: 0.72 },
@@ -134,8 +139,8 @@ export const MOCK_BRIEFING = {
     {
       id: 'mtg-2',
       title: 'Product Review — Q2 Roadmap',
-      startTime: new Date(new Date().setHours(14, 0, 0, 0)),
-      endTime: new Date(new Date().setHours(15, 0, 0, 0)),
+      startTime: new Date(new Date(_now).setHours(14, 0, 0, 0)),
+      endTime: new Date(new Date(_now).setHours(15, 0, 0, 0)),
       attendees: [
         { name: 'Mei Zhang', title: 'VP Product', relationshipHealth: 0.55 },
         { name: 'David Park', title: 'CFO', relationshipHealth: 0.68 },
@@ -182,8 +187,8 @@ export const MOCK_BRIEFING = {
     {
       id: 'mtg-3',
       title: '1:1 with Jordan',
-      startTime: new Date(new Date().setHours(16, 0, 0, 0)),
-      endTime: new Date(new Date().setHours(16, 30, 0, 0)),
+      startTime: new Date(new Date(_now).setHours(16, 0, 0, 0)),
+      endTime: new Date(new Date(_now).setHours(16, 30, 0, 0)),
       attendees: [
         { name: 'Jordan Liu', title: 'Engineer II', relationshipHealth: 0.90 },
       ],
