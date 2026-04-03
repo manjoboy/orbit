@@ -32,7 +32,7 @@ interface PriorityItem {
   timestamp: Date;
 }
 
-const TYPE_CONFIG: Record<string, { icon: React.ComponentType<any>; accent: string; bgAccent: string }> = {
+const TYPE_CONFIG: Record<string, { icon: React.ComponentType<{ className?: string }>; accent: string; bgAccent: string }> = {
   message: { icon: MessageSquare, accent: 'text-blue-400', bgAccent: 'bg-blue-500/10' },
   email: { icon: Mail, accent: 'text-purple-400', bgAccent: 'bg-purple-500/10' },
   task: { icon: CheckSquare, accent: 'text-amber-400', bgAccent: 'bg-amber-500/10' },

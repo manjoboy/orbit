@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { cn, formatTime, healthScoreColor } from '@/lib/utils';
 import {
-  Clock,
   Users,
   ChevronDown,
   ChevronUp,
@@ -44,7 +43,8 @@ interface MeetingBrief {
 
 export function MeetingTimeline({ meetings }: { meetings: MeetingBrief[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const now = new Date();
+  // Use lazy initializer to avoid hydration mismatch from server/client time difference
+  const [now] = useState(() => new Date());
 
   return (
     <div className="space-y-2">

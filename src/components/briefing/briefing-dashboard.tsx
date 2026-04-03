@@ -15,13 +15,17 @@ import { MOCK_BRIEFING } from '@/lib/mock-data';
 
 export function BriefingDashboard() {
   const [briefing] = useState(MOCK_BRIEFING);
+  // Use lazy useState initializers so the value is computed only on the client
+  // after hydration, avoiding server/client mismatch from time-based rendering.
+  const [greeting] = useState(() => getGreeting('Manoj'));
+  const [today] = useState(() => new Date());
 
   return (
     <div className="min-h-screen pb-20">
       {/* Header */}
       <BriefingHeader
-        greeting={getGreeting('Manoj')}
-        date={new Date()}
+        greeting={greeting}
+        date={today}
         signalCount={briefing.signalCount}
         insightCount={briefing.insightCount}
       />

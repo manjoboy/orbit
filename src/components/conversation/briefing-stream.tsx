@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useOrbit, type Section, type ActivePanel } from '../orbit-app';
 import { Calendar, TrendingUp, TrendingDown, Minus, Users, Newspaper, ChevronRight } from 'lucide-react';
-import { BRIEFING_SECTIONS, type BriefingSection } from '@/lib/briefing-data';
+import { BRIEFING_SECTIONS } from '@/lib/briefing-data';
 
 export function BriefingStream() {
   const { setActivePanel, setActiveSection } = useOrbit();

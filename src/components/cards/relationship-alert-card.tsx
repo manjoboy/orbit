@@ -1,6 +1,5 @@
 'use client';
 
-import { cn } from '@/lib/utils';
 import { MessageSquare } from 'lucide-react';
 
 export function RelationshipAlertCard({ data }: { data: Record<string, unknown> }) {
