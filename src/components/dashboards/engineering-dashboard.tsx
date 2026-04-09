@@ -21,6 +21,9 @@ import {
   ENGINEERING_AGENT_ACTIONS,
   ENGINEERING_SUMMARY,
 } from '@/lib/persona-data/engineering-data';
+import { useBriefingStream } from '@/lib/hooks/useBriefingStream';
+import { useAgent } from '@/lib/agent-context';
+import type { BriefingInsight } from '@/lib/agent-types';
 
 // ─── Priority badge colors ───
 const PRIORITY_COLORS: Record<string, string> = {
@@ -42,19 +45,39 @@ const CI_COLORS: Record<string, string> = {
 const DEPLOY_COLORS: Record<string, string> = {
   'success': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   'failed': 'bg-red-500/10 text-red-400 border-red-500/20',
-  'rolling-back': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  'in-progress': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'rolling': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  'rolled-back': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
   'scheduled': 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-[var(--color-border-subtle)]',
 };
 
 export function EngineeringDashboard() {
   const { userName } = useOrbit();
+  const { addAction } = useAgent();
+  const briefing = useBriefingStream('engineering', userName);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 150);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    briefing.startBriefing();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleInsightAction = (insight: BriefingInsight, action: BriefingInsight['proposedActions'][number]) => {
+    addAction({
+      type: action.type,
+      title: insight.headline,
+      description: action.description,
+      reasoning: insight.reasoning,
+      confidence: insight.urgency === 'high' ? 0.9 : insight.urgency === 'medium' ? 0.75 : 0.6,
+      sources: insight.sources,
+      persona: 'engineering',
+      origin: 'briefing',
+    });
+  };
 
   const today = new Date();
   const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
@@ -112,13 +135,9 @@ export function EngineeringDashboard() {
           <div className="flex-1 min-w-0 space-y-6">
             {/* Agent Action Card */}
             <AgentActionCard
-              message="PR #847 (payment pipeline refactor) has been waiting 2 days and fixes a customer-reported bug. I recommend fast-tracking — Jordan has bandwidth and context. I've added it to his queue."
-              reasoning="PR #847 addresses payment batch processing bug reported by Acme Corp (Zendesk #4521). The fix adds retry logic and has 342 additions with full test coverage. Jordan authored the original payment pipeline and reviewed the related architecture. CI is green. Merging today would unblock the v1.8.1 hotfix deploy scheduled for tomorrow."
-              actions={[
-                { label: 'Review PR', variant: 'primary' },
-                { label: 'View Ticket', variant: 'secondary' },
-              ]}
-              sources={['GitHub', 'Linear', 'Slack', 'Zendesk']}
+              isStreaming={briefing.state.status === 'streaming'}
+              briefingState={briefing.state}
+              onInsightAction={handleInsightAction}
             />
 
             {/* Sprint Board */}
@@ -162,7 +181,7 @@ export function EngineeringDashboard() {
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               <span className="text-[10px] text-[var(--color-text-muted)]">{ticket.assignee}</span>
-                              <span className="text-[10px] text-[var(--color-text-muted)] tabular-nums">{ticket.daysOpen}d</span>
+                              <span className="text-[10px] text-[var(--color-text-muted)] tabular-nums">{ticket.storyPoints}sp</span>
                             </div>
                           </div>
                         ))}
@@ -203,17 +222,17 @@ export function EngineeringDashboard() {
                       <span className="tabular-nums">{pr.age}</span>
                       <span>&middot;</span>
                       <span className="tabular-nums">
-                        <span className="text-emerald-400">+{pr.additions}</span>
+                        <span className="text-emerald-400">+{pr.linesAdded}</span>
                         {' '}
-                        <span className="text-red-400">-{pr.deletions}</span>
+                        <span className="text-red-400">-{pr.linesRemoved}</span>
                       </span>
                     </div>
-                    {pr.summary && (
+                    {pr.agentSummary && (
                       <div className="flex items-start gap-1.5 mt-1.5">
                         <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shrink-0 mt-0.5">
                           <div className="w-1 h-1 rounded-full bg-white/90" />
                         </div>
-                        <p className="text-[11px] text-[var(--color-accent)] leading-relaxed">{pr.summary}</p>
+                        <p className="text-[11px] text-[var(--color-accent)] leading-relaxed">{pr.agentSummary}</p>
                       </div>
                     )}
                   </div>
@@ -233,9 +252,9 @@ export function EngineeringDashboard() {
                     )}
                   >
                     <StatusDot
-                      status={deploy.status === 'success' ? 'healthy' : deploy.status === 'failed' ? 'critical' : deploy.status === 'rolling-back' ? 'warning' : 'info'}
+                      status={deploy.status === 'success' ? 'healthy' : deploy.status === 'failed' ? 'critical' : deploy.status === 'rolling' ? 'warning' : 'info'}
                       size="md"
-                      pulse={deploy.status === 'in-progress'}
+                      pulse={deploy.status === 'rolling'}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
@@ -248,16 +267,16 @@ export function EngineeringDashboard() {
                           {deploy.status}
                         </span>
                       </div>
-                      {deploy.riskNote && (
+                      {deploy.agentNote && (
                         <div className="flex items-start gap-1.5 mt-1">
                           <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shrink-0 mt-0.5">
                             <div className="w-1 h-1 rounded-full bg-white/90" />
                           </div>
-                          <p className="text-[11px] text-[var(--color-accent)] leading-relaxed">{deploy.riskNote}</p>
+                          <p className="text-[11px] text-[var(--color-accent)] leading-relaxed">{deploy.agentNote}</p>
                         </div>
                       )}
                     </div>
-                    <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">{deploy.time}</span>
+                    <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">{deploy.timestamp}</span>
                   </div>
                 ))}
               </div>
@@ -270,12 +289,12 @@ export function EngineeringDashboard() {
             <div className="rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border-subtle)] p-4">
               <span className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-widest">Workstream Priorities</span>
               <div className="mt-3 space-y-2.5">
-                {(ENGINEERING_SUMMARY?.priorities ?? [
+                {([
                   { rank: 1, name: 'Auth Migration', status: 'healthy' },
                   { rank: 2, name: 'Enterprise SSO', status: 'warning' },
                   { rank: 3, name: 'Payment Pipeline', status: 'critical' },
                   { rank: 4, name: 'API v3 Rollout', status: 'healthy' },
-                ]).map((item, i) => (
+                ] as const).map((item, i) => (
                   <div key={i} className="flex items-center gap-2.5">
                     <span className={cn(
                       'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
@@ -302,7 +321,7 @@ export function EngineeringDashboard() {
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                   </div>
                   <div>
-                    <p className="text-[12px] font-medium text-[var(--color-text-primary)]">{ENGINEERING_SUMMARY?.onCall ?? 'Alex Rivera'}</p>
+                    <p className="text-[12px] font-medium text-[var(--color-text-primary)]">{'Alex Rivera'}</p>
                     <p className="text-[10px] text-[var(--color-text-muted)]">On-call this week</p>
                   </div>
                 </div>

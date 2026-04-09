@@ -9,6 +9,7 @@ import { ProjectHealthCard } from '../cards/project-health-card';
 import { WellbeingCard } from '../cards/wellbeing-card';
 import { StatRowCard } from '../cards/stat-row-card';
 import { ActionPromptCard } from '../cards/action-prompt-card';
+import { ToolResultCardRenderer } from '../cards/tool-result-cards';
 
 export function MessageBubble({ message, isLatest: _isLatest }: { message: Message; isLatest: boolean }) {
   if (message.role === 'user') {
@@ -33,6 +34,16 @@ export function MessageBubble({ message, isLatest: _isLatest }: { message: Messa
           {message.cards.map((card, i) => (
             <div key={i} className="animate-fade-in" style={{ animationDelay: `${i * 80}ms` }}>
               <CardRenderer card={card} />
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Tool result cards from agent chat */}
+      {message.toolResults && message.toolResults.length > 0 && (
+        <div className="space-y-2 mt-2">
+          {message.toolResults.map((card, i) => (
+            <div key={i} className="animate-fade-in" style={{ animationDelay: `${i * 80}ms` }}>
+              <ToolResultCardRenderer card={card} />
             </div>
           ))}
         </div>

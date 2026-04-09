@@ -3,7 +3,7 @@
 // ============================================================================
 
 import {
-  Home, Inbox, Calendar, BarChart3,
+  Home, Inbox, Calendar, BarChart3, Zap,
   Briefcase, Users, Shield,
   Layers, MessageSquare, GitBranch,
   Code, Target, Rocket,
@@ -48,6 +48,7 @@ const SHARED_NAV: NavGroup = {
   defaultOpen: true,
   items: [
     { id: 'home', icon: Home, label: 'Home' },
+    { id: 'actions', icon: Zap, label: 'Actions' },
     { id: 'inbox', icon: Inbox, label: 'Inbox', badge: 4 },
     { id: 'calendar', icon: Calendar, label: 'Calendar' },
     { id: 'analytics', icon: BarChart3, label: 'Analytics' },

@@ -5,6 +5,7 @@ import { Home, Search, Sun, Moon, ChevronDown, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { useOrbit, type ActivePage } from '../orbit-app';
 import { getNavGroups, PERSONA_CONFIGS } from '@/lib/persona';
+import { useAgent } from '@/lib/agent-context';
 
 interface NavItem {
   id: ActivePage;
@@ -21,6 +22,7 @@ interface NavGroup {
 
 export function LeftSidebar() {
   const { setCommandPaletteOpen, activePage, setActivePage, theme, toggleTheme, persona, userName } = useOrbit();
+  const { pendingCount } = useAgent();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const navGroups = getNavGroups(persona) as NavGroup[];
@@ -97,6 +99,8 @@ export function LeftSidebar() {
                 <nav className="flex flex-col gap-0.5 px-2">
                   {group.items.map(({ id, icon: Icon, label, badge }) => {
                     const isActive = id === activePage;
+                    // Dynamic badge: use pendingCount for actions nav item
+                    const displayBadge = id === 'actions' ? (pendingCount > 0 ? pendingCount : undefined) : badge;
                     return (
                       <button
                         key={id}
@@ -110,9 +114,9 @@ export function LeftSidebar() {
                       >
                         <Icon className="w-4 h-4" />
                         <span className={cn('text-[13px]', isActive ? 'font-semibold' : 'font-medium')}>{label}</span>
-                        {badge !== undefined && (
+                        {displayBadge !== undefined && (
                           <span className="ml-auto w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center bg-[var(--color-accent)]">
-                            {badge}
+                            {displayBadge}
                           </span>
                         )}
                       </button>

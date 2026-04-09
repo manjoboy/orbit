@@ -17,11 +17,15 @@ import {
 import {
   SALES_DEALS,
   SALES_CONTACTS,
-  SALES_DEMO_PREPS,
-  SALES_AGENT_ACTIONS,
+  DEMO_PREPS,
+  AGENT_ACTIONS as SALES_AGENT_ACTIONS,
   SALES_SUMMARY,
   COMPETITOR_THREATS,
 } from '@/lib/persona-data/sales-data';
+import { useBriefingStream } from '@/lib/hooks/useBriefingStream';
+import { useAgent } from '@/lib/agent-context';
+import { createAgentAction } from '@/lib/agent-types';
+import type { BriefingInsight } from '@/lib/agent-types';
 
 // ─── Stage badge colors ───
 const STAGE_COLORS: Record<string, string> = {
@@ -40,6 +44,8 @@ function getStageColor(stage: string): string {
 
 export function SalesDashboard() {
   const { userName } = useOrbit();
+  const { addAction } = useAgent();
+  const briefing = useBriefingStream('sales', userName);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -47,12 +53,30 @@ export function SalesDashboard() {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    briefing.startBriefing();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleInsightAction = (insight: BriefingInsight, action: BriefingInsight['proposedActions'][number]) => {
+    addAction({
+      type: action.type,
+      title: insight.headline,
+      description: action.description,
+      reasoning: insight.reasoning,
+      confidence: insight.urgency === 'high' ? 0.9 : insight.urgency === 'medium' ? 0.75 : 0.6,
+      sources: insight.sources,
+      persona: 'sales',
+      origin: 'briefing',
+    });
+  };
+
   const today = new Date();
   const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   // Quota progress
-  const quotaPercent = SALES_SUMMARY?.quotaPercent ?? 62;
-  const totalPipeline = SALES_SUMMARY?.totalPipeline ?? '$1.2M';
+  const quotaPercent = SALES_SUMMARY?.quotaAttainment ?? 62;
+  const totalPipeline = SALES_SUMMARY?.pipelineValue ?? '$1.2M';
   const weightedPipeline = SALES_SUMMARY?.weightedPipeline ?? '$490K';
 
   return (
@@ -85,13 +109,9 @@ export function SalesDashboard() {
           <div className="flex-1 min-w-0 space-y-6">
             {/* Agent Action Card */}
             <AgentActionCard
-              message="Acme Corp's recent $50M Series C makes them a strong upsell candidate — their contract renews in 60 days. I've drafted an upsell proposal and talking points for your call with Lisa Huang on Thursday."
-              reasoning="Acme Corp raised $50M Series C (announced March 28). Their current contract ($48K ARR) renews June 1. Lisa Huang (VP Eng) has been actively evaluating enterprise features in your product. Competitive intel shows they were also contacted by Datadog. Upsell to enterprise tier ($120K ARR) has strong timing alignment."
-              actions={[
-                { label: 'View Proposal', variant: 'primary' },
-                { label: 'Prep Call', variant: 'secondary' },
-              ]}
-              sources={['Slack', 'Gmail', 'Crunchbase', 'CRM']}
+              isStreaming={briefing.state.status === 'streaming'}
+              briefingState={briefing.state}
+              onInsightAction={handleInsightAction}
             />
 
             {/* Deal Pulse */}
@@ -111,7 +131,7 @@ export function SalesDashboard() {
                       'hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-tertiary)] cursor-pointer'
                     )}
                   >
-                    <StatusDot status={deal.health} size="md" />
+                    <StatusDot status={deal.health === 'at-risk' ? 'warning' : deal.health} size="md" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-[13px] font-semibold text-[var(--color-text-primary)]">{deal.company}</span>
@@ -144,7 +164,7 @@ export function SalesDashboard() {
                   { name: 'Sarah Walsh', insight: 'DataPrime Head of Product liked your competitor analysis post on LinkedIn. Good signal for the discovery call Monday.' },
                 ]).slice(0, 3).map((contact, i) => (
                   <OrbitInsight key={i} label="Orbit Insight" actionLabel="View details">
-                    <strong className="text-[var(--color-text-primary)]">{contact.name}</strong>: {contact.insight}
+                    <strong className="text-[var(--color-text-primary)]">{contact.name}</strong>: {contact.notes}
                   </OrbitInsight>
                 ))}
               </div>
@@ -153,7 +173,7 @@ export function SalesDashboard() {
             {/* Demo Prep */}
             <DashboardSection title="Demo Prep">
               {(() => {
-                const demo = SALES_DEMO_PREPS?.[0] ?? {
+                const demo = DEMO_PREPS?.[0] ?? {
                   company: 'DataPrime',
                   date: 'Monday at 2:00 PM',
                   attendees: ['Sarah Walsh (Head of Product)', 'James Liu (CTO)', 'Maria Garcia (VP Eng)'],

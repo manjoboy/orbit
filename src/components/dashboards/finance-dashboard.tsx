@@ -19,10 +19,13 @@ import {
   APPROVAL_ITEMS,
   FORECAST_SCENARIOS,
   BOARD_PREP_ITEMS,
-  BURN_RATE_DATA,
+  BURN_RATE_ENTRIES,
   FINANCE_AGENT_ACTIONS,
   FINANCE_SUMMARY,
 } from '@/lib/persona-data/finance-persona-data';
+import { useBriefingStream } from '@/lib/hooks/useBriefingStream';
+import { useAgent } from '@/lib/agent-context';
+import type { BriefingInsight } from '@/lib/agent-types';
 
 // ─── Approval status colors ───
 const APPROVAL_STATUS_COLORS: Record<string, string> = {
@@ -43,11 +46,18 @@ const BOARD_STATUS_COLORS: Record<string, string> = {
 
 export function FinanceDashboard() {
   const { userName } = useOrbit();
+  const { addAction } = useAgent();
+  const briefing = useBriefingStream('finance', userName);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 150);
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    briefing.startBriefing();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const today = new Date();
@@ -86,7 +96,7 @@ export function FinanceDashboard() {
     { item: 'Risk Register', status: 'blocked', owner: 'You' },
   ];
 
-  const burnRateData = BURN_RATE_DATA ?? [
+  const burnRateData = BURN_RATE_ENTRIES ?? [
     { month: 'Nov', actual: 420, planned: 440 },
     { month: 'Dec', actual: 445, planned: 450 },
     { month: 'Jan', actual: 460, planned: 455 },
@@ -125,13 +135,20 @@ export function FinanceDashboard() {
           <div className="flex-1 min-w-0 space-y-6">
             {/* Agent Action Card */}
             <AgentActionCard
-              message="Q2 headcount projections are due to David by 5pm today. I've drafted 3 scenarios: Conservative (2 hires, $380K), Base (4, $720K), Aggressive (7, $1.26M). Base Case has the strongest ROI narrative."
-              reasoning="Based on Q1 actuals, 2 likely senior engineer departures (exit signals from 1:1 notes), Agent Builder v2 timeline requiring 2 additional engineers, and David's stated 15% headcount growth cap. Conservative covers attrition only. Base adds growth hires for highest-ROI project. Aggressive adds speculative hires for H2 initiatives."
-              actions={[
-                { label: 'Review Scenarios', variant: 'primary' },
-                { label: 'Send to David', variant: 'secondary' },
-              ]}
-              sources={['Gmail', 'Google Sheets', 'Linear', 'Slack']}
+              isStreaming={briefing.state.status === 'streaming'}
+              briefingState={briefing.state}
+              onInsightAction={(insight: BriefingInsight, action: BriefingInsight['proposedActions'][number]) => {
+                addAction({
+                  type: action.type,
+                  title: insight.headline,
+                  description: action.description,
+                  reasoning: insight.reasoning,
+                  confidence: insight.urgency === 'high' ? 0.9 : insight.urgency === 'medium' ? 0.75 : 0.6,
+                  sources: insight.sources,
+                  persona: 'finance',
+                  origin: 'briefing',
+                });
+              }}
             />
 
             {/* Budget Overview */}
@@ -145,7 +162,7 @@ export function FinanceDashboard() {
                 />
                 <DashboardMetric
                   label="Monthly Burn"
-                  value={`$${((summary.burnRate ?? 475000) / 1e3).toFixed(0)}K`}
+                  value={`$${((summary.monthlyBurn ?? 475000) / 1e3).toFixed(0)}K`}
                   change="Trending up"
                   trend="up"
                   status="warning"
@@ -157,7 +174,7 @@ export function FinanceDashboard() {
                 />
                 <DashboardMetric
                   label="Runway"
-                  value={summary.runway ?? '14 months'}
+                  value={`${summary.runway ?? 14} months`}
                   change="At current burn"
                   status="healthy"
                 />
@@ -170,15 +187,15 @@ export function FinanceDashboard() {
                   {budgetCategories.map((item, i) => {
                     const pct = Math.round((item.spent / item.allocated) * 100);
                     const statusColor =
-                      item.status === 'over' || item.status === 'at-risk'
+                      item.status === 'over-budget' || item.status === 'at-risk'
                         ? 'bg-[var(--color-status-critical)]/60'
-                        : item.status === 'under'
+                        : item.status === 'on-track'
                         ? 'bg-[var(--color-status-healthy)]/60'
                         : 'bg-[var(--color-chart-1)]';
                     const dotStatus =
-                      item.status === 'over' || item.status === 'at-risk'
+                      item.status === 'over-budget' || item.status === 'at-risk'
                         ? 'critical'
-                        : item.status === 'under'
+                        : item.status === 'on-track'
                         ? 'healthy'
                         : 'info';
 
@@ -187,7 +204,7 @@ export function FinanceDashboard() {
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-1.5">
                             <StatusDot status={dotStatus as 'critical' | 'healthy' | 'info'} size="sm" />
-                            <span className="text-[12px] text-[var(--color-text-secondary)]">{item.category}</span>
+                            <span className="text-[12px] text-[var(--color-text-secondary)]">{item.name}</span>
                           </div>
                           <span className="text-[11px] text-[var(--color-text-muted)] tabular-nums">
                             ${(item.spent / 1e3).toFixed(0)}K / ${(item.allocated / 1e3).toFixed(0)}K
@@ -242,12 +259,12 @@ export function FinanceDashboard() {
                         {item.status}
                       </span>
                     </div>
-                    {item.agentRec && (
+                    {item.agentRecommendation && (
                       <div className="flex items-start gap-1.5 mt-2">
                         <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shrink-0 mt-0.5">
                           <div className="w-1 h-1 rounded-full bg-white/90" />
                         </div>
-                        <p className="text-[11px] text-[var(--color-accent)] leading-relaxed">{item.agentRec}</p>
+                        <p className="text-[11px] text-[var(--color-accent)] leading-relaxed">{item.agentRecommendation}</p>
                       </div>
                     )}
                     {item.status === 'pending' && (
@@ -280,8 +297,6 @@ export function FinanceDashboard() {
                     >
                       {item.status === 'complete' ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      ) : item.status === 'blocked' ? (
-                        <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
                       ) : item.status === 'in-progress' ? (
                         <Clock className="w-4 h-4 text-blue-400 shrink-0" />
                       ) : (
@@ -293,7 +308,7 @@ export function FinanceDashboard() {
                           ? 'text-[var(--color-text-muted)] line-through'
                           : 'text-[var(--color-text-primary)] font-medium'
                       )}>
-                        {item.item}
+                        {item.section}
                       </span>
                       <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">{item.owner}</span>
                       <span className={cn(
@@ -354,7 +369,7 @@ export function FinanceDashboard() {
                   <div className="flex items-center justify-between mb-0.5">
                     <span className="text-[12px] text-[var(--color-text-secondary)]">Year-end Projection</span>
                     <span className="text-[13px] font-bold text-[var(--color-text-primary)] tabular-nums">
-                      {summary.yearEndProjection ?? '$4.8M'}
+                      {'$4.8M'}
                     </span>
                   </div>
                 </div>
@@ -366,22 +381,20 @@ export function FinanceDashboard() {
                     </span>
                   </div>
                 </div>
-                {(FORECAST_SCENARIOS ?? [
-                  { label: 'Conservative', spend: '$4.2M', confidence: 90 },
-                  { label: 'Base', spend: '$4.8M', confidence: 70 },
-                  { label: 'Aggressive', spend: '$5.4M', confidence: 40 },
-                ]).map((scenario, i) => (
+                {FORECAST_SCENARIOS.map((scenario, i) => (
                   <div key={i} className="flex items-center justify-between">
                     <span className="text-[11px] text-[var(--color-text-tertiary)]">{scenario.label}</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-medium text-[var(--color-text-secondary)] tabular-nums">{scenario.spend}</span>
+                      <span className="text-[11px] font-medium text-[var(--color-text-secondary)] tabular-nums">
+                        ${(scenario.totalCost / 1e6).toFixed(1)}M
+                      </span>
                       <span className={cn(
                         'text-[9px] font-bold tabular-nums',
-                        scenario.confidence >= 70 ? 'text-[var(--color-status-healthy)]' :
-                        scenario.confidence >= 50 ? 'text-[var(--color-status-warning)]' :
+                        scenario.risk === 'low' ? 'text-[var(--color-status-healthy)]' :
+                        scenario.risk === 'medium' ? 'text-[var(--color-status-warning)]' :
                         'text-[var(--color-text-muted)]'
                       )}>
-                        {scenario.confidence}%
+                        {scenario.risk}
                       </span>
                     </div>
                   </div>

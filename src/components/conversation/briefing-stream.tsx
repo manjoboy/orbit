@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { useOrbit, type Section, type ActivePanel } from '../orbit-app';
 import { Calendar, TrendingUp, TrendingDown, Minus, Users, Newspaper, ChevronRight, Network, Pen, Bot, User } from 'lucide-react';
 import { BRIEFING_SECTIONS } from '@/lib/briefing-data';
+import { ToolResultCardRenderer } from '../cards/tool-result-cards';
 
 // ─── Typing indicator dots ───
 function TypingIndicator() {
@@ -365,13 +366,22 @@ export function BriefingStream() {
                     {msg.role === 'user' ? (
                       <p className="text-[13px] leading-[1.6] whitespace-pre-wrap">{msg.content}</p>
                     ) : (
-                      <div className="text-[13px] text-[var(--color-text-secondary)] leading-[1.6] whitespace-pre-wrap">
-                        {msg.content ? (
-                          renderMessageContent(msg.content)
-                        ) : (
-                          <TypingIndicator />
+                      <>
+                        <div className="text-[13px] text-[var(--color-text-secondary)] leading-[1.6] whitespace-pre-wrap">
+                          {msg.content ? (
+                            renderMessageContent(msg.content)
+                          ) : (
+                            <TypingIndicator />
+                          )}
+                        </div>
+                        {msg.toolResults && msg.toolResults.length > 0 && (
+                          <div className="mt-2 space-y-2">
+                            {msg.toolResults.map((card, i) => (
+                              <ToolResultCardRenderer key={i} card={card} />
+                            ))}
+                          </div>
                         )}
-                      </div>
+                      </>
                     )}
                     <p className={cn(
                       'text-[10px] mt-1.5',

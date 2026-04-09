@@ -6,10 +6,14 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { LucideIcon } from 'lucide-react';
 import { StatusDot } from '@/components/ui/status-dot';
+import { InsightCard } from '@/components/cards/insight-card';
+import type { BriefingInsight, BriefingStreamState } from '@/lib/agent-types';
 
 // ─── AgentActionCard ────────────────────────────────────────────────────────
 // Hero "wow" component showing what the AI agent proactively prepared.
-// Used as the top card on every persona dashboard.
+// Supports two modes:
+//   1. Static mode: renders a simple message (existing behavior)
+//   2. Streaming mode: shows live briefing with insight cards
 
 interface AgentAction {
   label: string;
@@ -18,11 +22,15 @@ interface AgentAction {
 
 interface AgentActionCardProps {
   title?: string;
-  message: string;
+  message?: string;
   reasoning?: string;
   actions?: AgentAction[];
   sources?: string[];
   className?: string;
+  // Streaming briefing mode
+  isStreaming?: boolean;
+  briefingState?: BriefingStreamState;
+  onInsightAction?: (insight: BriefingInsight, action: BriefingInsight['proposedActions'][number]) => void;
 }
 
 export function AgentActionCard({
@@ -32,8 +40,14 @@ export function AgentActionCard({
   actions,
   sources,
   className,
+  isStreaming,
+  briefingState,
+  onInsightAction,
 }: AgentActionCardProps) {
   const [reasoningOpen, setReasoningOpen] = useState(false);
+
+  const isBriefingMode = briefingState !== undefined;
+  const showPulse = isStreaming && (!briefingState || briefingState.status === 'streaming');
 
   return (
     <div className={cn(
@@ -42,70 +56,128 @@ export function AgentActionCard({
     )}>
       {/* Header: Orbit logo + title */}
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shrink-0">
+        <div className={cn(
+          'w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shrink-0',
+          showPulse && 'animate-pulse'
+        )}>
           <div className="w-2.5 h-2.5 rounded-full bg-white/90" />
         </div>
-        <span className="text-[14px] font-semibold text-[var(--color-text-primary)]">{title}</span>
+        <span className="text-[14px] font-semibold text-[var(--color-text-primary)]">
+          {isBriefingMode && briefingState.status === 'streaming' ? 'Orbit is preparing your briefing...' :
+           isBriefingMode && briefingState.status === 'complete' ? 'Your briefing is ready' :
+           title}
+        </span>
       </div>
 
-      {/* Message body */}
-      <p className="text-[14px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
-        {message}
-      </p>
+      {/* Briefing mode: streaming text + insight cards */}
+      {isBriefingMode ? (
+        <div>
+          {/* Greeting */}
+          {briefingState.greeting && (
+            <p className="text-[14px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+              {briefingState.greeting}
+              {briefingState.status === 'streaming' && briefingState.insights.length === 0 && (
+                <span className="inline-block w-1.5 h-4 bg-[var(--color-accent)] ml-0.5 animate-pulse align-text-bottom" />
+              )}
+            </p>
+          )}
 
-      {/* Optional reasoning collapsible */}
-      {reasoning && (
-        <div className="mb-4">
-          <button
-            onClick={() => setReasoningOpen(!reasoningOpen)}
-            className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-          >
-            {reasoningOpen ? (
-              <ChevronDown className="w-3 h-3" />
-            ) : (
-              <ChevronRight className="w-3 h-3" />
-            )}
-            See reasoning
-          </button>
-          {reasoningOpen && (
-            <div className="mt-2 pl-4 border-l-2 border-[var(--color-accent)]/20">
-              <p className="text-[12px] text-[var(--color-text-tertiary)] leading-relaxed">
-                {reasoning}
-              </p>
+          {/* Insight cards */}
+          {briefingState.insights.length > 0 && (
+            <div className="space-y-2.5 mt-3">
+              {briefingState.insights.map((insight) => (
+                <InsightCard
+                  key={insight.id}
+                  insight={insight}
+                  onAction={onInsightAction}
+                />
+              ))}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Bottom bar: sources + actions */}
-      <div className="flex items-center justify-between gap-3">
-        {/* Source pills */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {sources?.map((source) => (
-            <span
-              key={source}
-              className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] border border-[var(--color-border-subtle)]"
-            >
-              {source}
-            </span>
-          ))}
-        </div>
+          {/* Streaming indicator while no insights yet */}
+          {briefingState.status === 'streaming' && briefingState.insights.length === 0 && !briefingState.greeting && (
+            <div className="flex items-center gap-2 py-2">
+              <div className="flex gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-[12px] text-[var(--color-text-muted)]">Analyzing your data...</span>
+            </div>
+          )}
 
-        {/* Action buttons */}
-        {actions && actions.length > 0 && (
-          <div className="flex items-center gap-2 shrink-0">
-            {actions.map((action) => (
-              <Button
-                key={action.label}
-                variant={action.variant === 'primary' ? 'primary' : 'secondary'}
-                size="sm"
+          {/* Error state */}
+          {briefingState.status === 'error' && (
+            <p className="text-[12px] text-[var(--color-status-critical)] mt-2">
+              Failed to load briefing. The static dashboard is shown below.
+            </p>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Static mode: original message body */}
+          {message && (
+            <p className="text-[14px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+              {message}
+            </p>
+          )}
+
+          {/* Optional reasoning collapsible */}
+          {reasoning && (
+            <div className="mb-4">
+              <button
+                onClick={() => setReasoningOpen(!reasoningOpen)}
+                className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
               >
-                {action.label}
-              </Button>
-            ))}
+                {reasoningOpen ? (
+                  <ChevronDown className="w-3 h-3" />
+                ) : (
+                  <ChevronRight className="w-3 h-3" />
+                )}
+                See reasoning
+              </button>
+              {reasoningOpen && (
+                <div className="mt-2 pl-4 border-l-2 border-[var(--color-accent)]/20">
+                  <p className="text-[12px] text-[var(--color-text-tertiary)] leading-relaxed">
+                    {reasoning}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Bottom bar: sources + actions */}
+          <div className="flex items-center justify-between gap-3">
+            {/* Source pills */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {sources?.map((source) => (
+                <span
+                  key={source}
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] border border-[var(--color-border-subtle)]"
+                >
+                  {source}
+                </span>
+              ))}
+            </div>
+
+            {/* Action buttons */}
+            {actions && actions.length > 0 && (
+              <div className="flex items-center gap-2 shrink-0">
+                {actions.map((action) => (
+                  <Button
+                    key={action.label}
+                    variant={action.variant === 'primary' ? 'primary' : 'secondary'}
+                    size="sm"
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }

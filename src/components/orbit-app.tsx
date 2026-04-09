@@ -35,7 +35,10 @@ import { BudgetPage } from './pages/finance/budget-page';
 import { ApprovalsPage } from './pages/finance/approvals-page';
 import { ForecastingPage } from './pages/finance/forecasting-page';
 
+import { AgentProvider } from '@/lib/agent-context';
+import { ActionsPage } from './pages/actions-page';
 import type { Persona } from '@/lib/persona';
+import type { ToolResultCard } from '@/lib/agent-types';
 
 // ─── Shared State ───
 export type ActivePanel = {
@@ -49,7 +52,7 @@ export type Section = 'inbox' | 'meetings' | 'projects' | 'intel' | 'people' | '
 
 export type ActivePage =
   // Shared pages
-  | 'home' | 'inbox' | 'calendar' | 'analytics'
+  | 'home' | 'inbox' | 'calendar' | 'analytics' | 'actions'
   // Legacy pages (kept for backward compat)
   | 'finance' | 'operations' | 'pipeline' | 'roadmap'
   // Sales persona
@@ -68,6 +71,7 @@ export interface ChatMessage {
   role: 'user' | 'ai';
   content: string;
   timestamp: Date;
+  toolResults?: ToolResultCard[];
 }
 
 interface OrbitContextType {
@@ -166,6 +170,7 @@ function PageContent({ activePage, isPanelOpen, setActivePanel, sendMessage, isS
     case 'inbox': return <InboxPage />;
     case 'calendar': return <CalendarPage />;
     case 'analytics': return <AnalyticsPage />;
+    case 'actions': return <ActionsPage />;
     // Legacy pages
     case 'finance': return <FinancePage />;
     case 'operations': return <OperationsPage />;
@@ -241,10 +246,20 @@ export function OrbitApp() {
     abortRef.current = controller;
 
     try {
+      // Build history from recent messages for context
+      const recentMessages = messages.slice(-10).map((m) => ({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.content,
+      }));
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text.trim() }),
+        body: JSON.stringify({
+          message: text.trim(),
+          persona,
+          history: recentMessages,
+        }),
         signal: controller.signal,
       });
 
@@ -255,14 +270,46 @@ export function OrbitApp() {
 
       const decoder = new TextDecoder();
       let accumulated = '';
+      const toolResults: ToolResultCard[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         accumulated += decoder.decode(value, { stream: true });
-        const content = accumulated;
+
+        // Parse tool result cards from __TOOL:...__TOOL_END delimiters
+        let displayContent = accumulated;
+        const parsedTools: ToolResultCard[] = [];
+        const toolRegex = /__TOOL:([\s\S]*?)__TOOL_END/g;
+        let match;
+        while ((match = toolRegex.exec(accumulated)) !== null) {
+          try {
+            const card = JSON.parse(match[1]) as ToolResultCard;
+            parsedTools.push(card);
+
+            // Handle navigation tool — navigate the page
+            if (card.type === 'navigation' && card.data.page) {
+              setActivePage(card.data.page as ActivePage);
+            }
+          } catch {
+            // Invalid JSON — skip
+          }
+          displayContent = displayContent.replace(match[0], '');
+        }
+
+        // Clean up display content (remove tool delimiters)
+        displayContent = displayContent.replace(/__TOOL:[\s\S]*?(?:__TOOL_END)?$/g, '').trim();
+
+        // Update tool results
+        toolResults.length = 0;
+        toolResults.push(...parsedTools);
+
         setMessages((prev) =>
-          prev.map((m) => (m.id === aiMsgId ? { ...m, content } : m))
+          prev.map((m) =>
+            m.id === aiMsgId
+              ? { ...m, content: displayContent, toolResults: parsedTools.length > 0 ? [...parsedTools] : undefined }
+              : m
+          )
         );
       }
     } catch (err) {
@@ -279,7 +326,7 @@ export function OrbitApp() {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [isStreaming]);
+  }, [isStreaming, messages, persona, setActivePage]);
 
   useKeyboardShortcut('cmd+k', () => {
     setCommandPaletteOpen((prev) => !prev);
@@ -298,27 +345,29 @@ export function OrbitApp() {
         userName,
       }}
     >
-      <div className="flex h-screen overflow-hidden bg-[var(--color-bg-primary)]">
-        {/* Left Sidebar */}
-        <LeftSidebar />
+      <AgentProvider persona={persona}>
+        <div className="flex h-screen overflow-hidden bg-[var(--color-bg-primary)]">
+          {/* Left Sidebar */}
+          <LeftSidebar />
 
-        {/* Main content area */}
-        <div className="flex flex-col flex-1 min-w-0">
-          <OrbitHeader />
+          {/* Main content area */}
+          <div className="flex flex-col flex-1 min-w-0">
+            <OrbitHeader />
 
-          <div className="flex flex-1 overflow-hidden relative">
-            <PageContent
-              activePage={activePage}
-              isPanelOpen={isPanelOpen}
-              setActivePanel={setActivePanel}
-              sendMessage={sendMessage}
-              isStreaming={isStreaming}
-            />
+            <div className="flex flex-1 overflow-hidden relative">
+              <PageContent
+                activePage={activePage}
+                isPanelOpen={isPanelOpen}
+                setActivePanel={setActivePanel}
+                sendMessage={sendMessage}
+                isStreaming={isStreaming}
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      <CommandPalette />
+        <CommandPalette />
+      </AgentProvider>
     </OrbitContext.Provider>
   );
 }

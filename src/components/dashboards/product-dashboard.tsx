@@ -22,6 +22,9 @@ import {
   PRODUCT_AGENT_ACTIONS,
   PRODUCT_SUMMARY,
 } from '@/lib/persona-data/product-data';
+import { useBriefingStream } from '@/lib/hooks/useBriefingStream';
+import { useAgent } from '@/lib/agent-context';
+import type { BriefingInsight } from '@/lib/agent-types';
 
 // ─── Status badge colors ───
 const STATUS_COLORS: Record<string, string> = {
@@ -47,6 +50,8 @@ function getSentimentColor(sentiment: string): 'healthy' | 'warning' | 'critical
 
 export function ProductDashboard() {
   const { userName } = useOrbit();
+  const { addAction } = useAgent();
+  const briefing = useBriefingStream('product', userName);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -54,14 +59,33 @@ export function ProductDashboard() {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    briefing.startBriefing();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleInsightAction = (insight: BriefingInsight, action: BriefingInsight['proposedActions'][number]) => {
+    addAction({
+      type: action.type,
+      title: insight.headline,
+      description: action.description,
+      reasoning: insight.reasoning,
+      confidence: insight.urgency === 'high' ? 0.9 : insight.urgency === 'medium' ? 0.75 : 0.6,
+      sources: insight.sources,
+      persona: 'product',
+      origin: 'briefing',
+    });
+  };
+
   const today = new Date();
   const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-  // Sprint metrics
-  const velocity = SPRINT_METRICS?.velocity ?? 34;
-  const sprintDone = SPRINT_METRICS?.done ?? 12;
-  const sprintTotal = SPRINT_METRICS?.total ?? 18;
-  const carryOver = SPRINT_METRICS?.carryOver ?? 3;
+  // Sprint metrics (derive from latest sprint entry)
+  const latestSprint = SPRINT_METRICS?.[SPRINT_METRICS.length - 1];
+  const velocity = latestSprint?.completed ?? 34;
+  const sprintDone = latestSprint?.completed ?? 12;
+  const sprintTotal = latestSprint?.planned ?? 18;
+  const carryOver = latestSprint?.carryover ?? 3;
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -93,13 +117,9 @@ export function ProductDashboard() {
           <div className="flex-1 min-w-0 space-y-6">
             {/* Agent Action Card */}
             <AgentActionCard
-              message="Customer feedback is clustering around Agent Builder complexity (34 mentions, up 42% this month). I've identified 3 UX patterns from top complaints and drafted a PRD section with proposed solutions."
-              reasoning="Feedback analysis from Intercom (18 tickets), Slack #product-feedback (9 messages), and G2 reviews (7 mentions) shows consistent theme: users find the multi-step agent configuration flow confusing. Top 3 UX issues: 1) No visual preview of agent behavior, 2) Unclear connection between triggers and actions, 3) Testing requires deployment. Drafted solutions based on Figma flow builder pattern."
-              actions={[
-                { label: 'View PRD Draft', variant: 'primary' },
-                { label: 'See Feedback', variant: 'secondary' },
-              ]}
-              sources={['Intercom', 'Slack', 'G2', 'Linear']}
+              isStreaming={briefing.state.status === 'streaming'}
+              briefingState={briefing.state}
+              onInsightAction={handleInsightAction}
             />
 
             {/* PRD Action Items */}
@@ -129,22 +149,22 @@ export function ProductDashboard() {
                     </div>
                     <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-muted)] mb-1.5">
                       <span>{prd.owner}</span>
-                      {prd.blocker && (
+                      {prd.blockers && prd.blockers.length > 0 && (
                         <>
                           <span>&middot;</span>
                           <span className="text-[var(--color-status-critical)] font-medium flex items-center gap-1">
                             <StatusDot status="critical" size="sm" />
-                            {prd.blocker}
+                            {prd.blockers[0]}
                           </span>
                         </>
                       )}
                     </div>
-                    {prd.insight && (
+                    {prd.agentInsight && (
                       <div className="flex items-start gap-1.5 mt-1.5">
                         <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shrink-0 mt-0.5">
                           <div className="w-1 h-1 rounded-full bg-white/90" />
                         </div>
-                        <p className="text-[11px] text-[var(--color-accent)] leading-relaxed">{prd.insight}</p>
+                        <p className="text-[11px] text-[var(--color-accent)] leading-relaxed">{prd.agentInsight}</p>
                       </div>
                     )}
                   </div>
@@ -228,11 +248,11 @@ export function ProductDashboard() {
                             <p className="text-[11px] text-[var(--color-text-secondary)] leading-tight">{item.title}</p>
                             <span className={cn(
                               'text-[9px] font-medium mt-0.5 inline-block',
-                              item.priority === 'high' ? 'text-[var(--color-status-critical)]' :
-                              item.priority === 'medium' ? 'text-[var(--color-status-warning)]' :
+                              item.priority === 'p0' ? 'text-[var(--color-status-critical)]' :
+                              item.priority === 'p1' ? 'text-[var(--color-status-warning)]' :
                               'text-[var(--color-text-muted)]'
                             )}>
-                              {item.priority}
+                              {item.priority.toUpperCase()}
                             </span>
                           </div>
                         ))}
@@ -284,11 +304,11 @@ export function ProductDashboard() {
             <div className="rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border-subtle)] p-4">
               <span className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-widest">Roadmap Status</span>
               <div className="mt-3 space-y-3">
-                {(PRODUCT_SUMMARY?.roadmapItems ?? [
+                {([
                   { name: 'Agent Builder v2', progress: 65 },
                   { name: 'Enterprise SSO', progress: 30 },
                   { name: 'API v3', progress: 10 },
-                ]).map((item, i) => (
+                ] as const).map((item, i) => (
                   <div key={i}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[12px] text-[var(--color-text-secondary)]">{item.name}</span>

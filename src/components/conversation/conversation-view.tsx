@@ -11,6 +11,7 @@ export type Message = {
   role: 'ai' | 'user';
   content?: string;
   cards?: CardData[];
+  toolResults?: import('@/lib/agent-types').ToolResultCard[];
   timestamp: Date;
   isStreaming?: boolean;
 };
@@ -63,7 +64,7 @@ export function ConversationView() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  const replyTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const replyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   function handleSend(text: string) {
     setMessages(prev => [...prev, { id: `user-${Date.now()}`, role: 'user', content: text, timestamp: new Date() }]);
