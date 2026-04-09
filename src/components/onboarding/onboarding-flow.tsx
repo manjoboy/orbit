@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, Loader2, ArrowRight, Sparkles } from 'lucide-react';
+import { Check, Loader2, ArrowRight, Sparkles, Briefcase, Layers, Code, DollarSign } from 'lucide-react';
+import { PERSONA_CONFIGS, type Persona } from '@/lib/persona';
 
 // ─── Integration definitions ───
 interface Integration {
@@ -93,12 +94,54 @@ const INTEGRATIONS: Integration[] = [
   },
 ];
 
-// ─── Progress step definitions ───
-const GRAPH_STEPS = [
-  { text: 'Scanning 847 messages across 23 channels...', target: 25 },
-  { text: 'Identifying 34 key relationships...', target: 50 },
-  { text: 'Mapping project dependencies...', target: 75 },
-  { text: 'Generating your first briefing...', target: 100 },
+// ─── Role card definitions ───
+interface RoleCard {
+  id: Persona;
+  name: string;
+  description: string;
+  icon: typeof Briefcase;
+  accentClass: string;
+  borderGlow: string;
+  bgHover: string;
+}
+
+const ROLE_CARDS: RoleCard[] = [
+  {
+    id: 'sales',
+    name: 'Sales',
+    description: 'Pipeline, deals, and competitive intel',
+    icon: Briefcase,
+    accentClass: 'text-blue-500',
+    borderGlow: 'border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)]',
+    bgHover: 'hover:border-blue-500/40',
+  },
+  {
+    id: 'product',
+    name: 'Product',
+    description: 'Roadmaps, feedback, and sprints',
+    icon: Layers,
+    accentClass: 'text-purple-500',
+    borderGlow: 'border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.3)]',
+    bgHover: 'hover:border-purple-500/40',
+  },
+  {
+    id: 'engineering',
+    name: 'Engineering',
+    description: 'Code, PRs, and deployments',
+    icon: Code,
+    accentClass: 'text-emerald-500',
+    borderGlow: 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]',
+    bgHover: 'hover:border-emerald-500/40',
+  },
+  {
+    id: 'finance',
+    name: 'Finance',
+    description: 'Budgets, approvals, and forecasts',
+    icon: DollarSign,
+    accentClass: 'text-amber-500',
+    borderGlow: 'border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)]',
+    bgHover: 'hover:border-amber-500/40',
+  },
 ];
 
 // ─── Props ───
@@ -109,6 +152,12 @@ interface OnboardingFlowProps {
 // ─── Main Component ───
 export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [step, setStep] = useState(0);
+  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
+
+  const handlePersonaSelect = useCallback((persona: Persona) => {
+    setSelectedPersona(persona);
+    window.localStorage.setItem('orbit-persona', JSON.stringify(persona));
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 bg-[var(--color-bg-primary)] flex items-center justify-center">
@@ -119,15 +168,37 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
       <div className="relative w-full max-w-2xl mx-auto px-6">
         {step === 0 && <WelcomeStep onNext={() => setStep(1)} />}
-        {step === 1 && <IntegrationsStep onNext={() => setStep(2)} />}
-        {step === 2 && <BuildingGraphStep onNext={() => setStep(3)} />}
-        {step === 3 && <ReadyStep onComplete={onComplete} />}
+        {step === 1 && (
+          <RoleSelectionStep
+            selectedPersona={selectedPersona}
+            onSelect={handlePersonaSelect}
+            onNext={() => setStep(2)}
+          />
+        )}
+        {step === 2 && selectedPersona && (
+          <QuickSetupStep
+            persona={selectedPersona}
+            onNext={() => setStep(3)}
+          />
+        )}
+        {step === 3 && selectedPersona && (
+          <IntegrationsStep
+            persona={selectedPersona}
+            onNext={() => setStep(4)}
+          />
+        )}
+        {step === 4 && selectedPersona && (
+          <BuildingReadyStep
+            persona={selectedPersona}
+            onComplete={onComplete}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Step 1: Welcome ───
+// ─── Step 0: Welcome ───
 function WelcomeStep({ onNext }: { onNext: () => void }) {
   return (
     <div className="flex flex-col items-center text-center animate-fade-in">
@@ -140,7 +211,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         Welcome to Orbit
       </h1>
       <p className="text-[15px] text-[var(--color-text-tertiary)] mt-3 max-w-sm leading-relaxed">
-        Your professional world, connected
+        Your AI-powered command center
       </p>
 
       <button
@@ -158,10 +229,203 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
   );
 }
 
-// ─── Step 2: Connect Integrations ───
-function IntegrationsStep({ onNext }: { onNext: () => void }) {
+// ─── Step 1: Role Selection ───
+function RoleSelectionStep({
+  selectedPersona,
+  onSelect,
+  onNext,
+}: {
+  selectedPersona: Persona | null;
+  onSelect: (persona: Persona) => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="animate-fade-in">
+      <div className="text-center mb-8">
+        <h2 className="text-[24px] font-bold text-[var(--color-text-primary)] tracking-tight">
+          What&apos;s your role?
+        </h2>
+        <p className="text-[13px] text-[var(--color-text-tertiary)] mt-2">
+          Orbit adapts to how you work
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {ROLE_CARDS.map((card) => {
+          const isSelected = selectedPersona === card.id;
+          const isOtherSelected = selectedPersona !== null && !isSelected;
+          const Icon = card.icon;
+
+          return (
+            <button
+              key={card.id}
+              onClick={() => onSelect(card.id)}
+              className={cn(
+                'relative flex flex-col items-center gap-3 p-6 rounded-xl border transition-all duration-200 text-center',
+                isSelected
+                  ? cn('bg-[var(--color-bg-secondary)]', card.borderGlow)
+                  : cn(
+                      'bg-[var(--color-bg-secondary)] border-[var(--color-border-subtle)]',
+                      card.bgHover,
+                      isOtherSelected && 'opacity-50'
+                    )
+              )}
+            >
+              {/* Check mark for selected */}
+              {isSelected && (
+                <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                  <Check className="w-3 h-3 text-emerald-400" />
+                </div>
+              )}
+
+              <div className={cn(
+                'w-10 h-10 rounded-lg flex items-center justify-center transition-colors duration-200',
+                isSelected
+                  ? 'bg-[var(--color-bg-tertiary)]'
+                  : 'bg-[var(--color-bg-tertiary)]'
+              )}>
+                <Icon className={cn('w-5 h-5', card.accentClass)} />
+              </div>
+              <div>
+                <p className="text-[14px] font-bold text-[var(--color-text-primary)]">
+                  {card.name}
+                </p>
+                <p className="text-[11px] text-[var(--color-text-muted)] mt-1">
+                  {card.description}
+                </p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-col items-center mt-8">
+        {selectedPersona && (
+          <button
+            onClick={onNext}
+            className="flex items-center gap-2 px-6 py-3 rounded-xl text-[14px] font-medium bg-[var(--color-accent-strong)] text-white hover:opacity-90 transition-all duration-200 animate-fade-in"
+          >
+            Continue
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 2: Quick Setup ───
+function QuickSetupStep({
+  persona,
+  onNext,
+}: {
+  persona: Persona;
+  onNext: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [selectedPriorities, setSelectedPriorities] = useState<Set<string>>(new Set());
+  const config = PERSONA_CONFIGS[persona];
+
+  const handleNameChange = useCallback((value: string) => {
+    setName(value);
+    window.localStorage.setItem('orbit-user-name', JSON.stringify(value));
+  }, []);
+
+  const togglePriority = useCallback((priority: string) => {
+    setSelectedPriorities((prev) => {
+      const next = new Set(prev);
+      if (next.has(priority)) {
+        next.delete(priority);
+      } else {
+        next.add(priority);
+      }
+      return next;
+    });
+  }, []);
+
+  return (
+    <div className="animate-fade-in">
+      <div className="text-center mb-8">
+        <h2 className="text-[24px] font-bold text-[var(--color-text-primary)] tracking-tight">
+          A few quick things
+        </h2>
+        <p className="text-[13px] text-[var(--color-text-tertiary)] mt-2">
+          Help Orbit personalize your experience
+        </p>
+      </div>
+
+      {/* Name input */}
+      <div className="mb-6">
+        <label className="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">
+          Your name
+        </label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => handleNameChange(e.target.value)}
+          placeholder="Enter your name"
+          className="w-full px-4 py-3 rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border-subtle)] text-[14px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+        />
+      </div>
+
+      {/* Priority chips */}
+      <div className="mb-8">
+        <label className="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-3">
+          What matters most to you?
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {config.priorities.map((priority) => {
+            const isActive = selectedPriorities.has(priority);
+            return (
+              <button
+                key={priority}
+                onClick={() => togglePriority(priority)}
+                className={cn(
+                  'px-4 py-2 rounded-full text-[13px] font-medium border transition-all duration-200',
+                  isActive
+                    ? 'bg-[var(--color-accent-subtle)] border-[var(--color-accent)] text-[var(--color-accent)]'
+                    : 'bg-[var(--color-bg-secondary)] border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-default)]'
+                )}
+              >
+                {isActive && <Check className="w-3 h-3 inline mr-1.5 -mt-0.5" />}
+                {priority}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex flex-col items-center">
+        <button
+          onClick={onNext}
+          className="flex items-center gap-2 px-6 py-3 rounded-xl text-[14px] font-medium bg-[var(--color-accent-strong)] text-white hover:opacity-90 transition-opacity"
+        >
+          Continue
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 3: Integrations ───
+function IntegrationsStep({
+  persona,
+  onNext,
+}: {
+  persona: Persona;
+  onNext: () => void;
+}) {
   const [connected, setConnected] = useState<Set<string>>(new Set());
   const [connecting, setConnecting] = useState<string | null>(null);
+  const config = PERSONA_CONFIGS[persona];
+
+  // Reorder integrations based on persona preference
+  const orderedIntegrations = [...INTEGRATIONS].sort((a, b) => {
+    const aIdx = config.integrationOrder.indexOf(a.id);
+    const bIdx = config.integrationOrder.indexOf(b.id);
+    return aIdx - bIdx;
+  });
 
   const handleConnect = useCallback((id: string) => {
     if (connected.has(id) || connecting) return;
@@ -190,7 +454,7 @@ function IntegrationsStep({ onNext }: { onNext: () => void }) {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {INTEGRATIONS.map((integration) => {
+        {orderedIntegrations.map((integration) => {
           const isConnected = connected.has(integration.id);
           const isConnecting = connecting === integration.id;
 
@@ -264,13 +528,24 @@ function IntegrationsStep({ onNext }: { onNext: () => void }) {
   );
 }
 
-// ─── Step 3: Building Graph ───
-function BuildingGraphStep({ onNext }: { onNext: () => void }) {
+// ─── Step 4: Building + Ready (combined) ───
+function BuildingReadyStep({
+  persona,
+  onComplete,
+}: {
+  persona: Persona;
+  onComplete: () => void;
+}) {
   const [progress, setProgress] = useState(0);
   const [activeStepIdx, setActiveStepIdx] = useState(0);
   const [visibleSteps, setVisibleSteps] = useState<number[]>([0]);
+  const [isReady, setIsReady] = useState(false);
+  const config = PERSONA_CONFIGS[persona];
+  const buildingSteps = config.buildingSteps;
 
   useEffect(() => {
+    if (isReady) return;
+
     let frame: number;
     let startTime: number | null = null;
     const TOTAL_DURATION = 6000; // 6 seconds total
@@ -292,14 +567,62 @@ function BuildingGraphStep({ onNext }: { onNext: () => void }) {
       if (pct < 100) {
         frame = requestAnimationFrame(tick);
       } else {
-        // Auto-transition after a brief pause
-        setTimeout(onNext, 800);
+        // Auto-transition to ready state
+        setTimeout(() => setIsReady(true), 800);
       }
     }
 
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [onNext]);
+  }, [isReady]);
+
+  if (isReady) {
+    return (
+      <div className="flex flex-col items-center text-center animate-fade-in">
+        {/* Success icon */}
+        <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mb-8">
+          <Check className="w-7 h-7 text-emerald-400" />
+        </div>
+
+        <h2 className="text-[28px] font-bold text-[var(--color-text-primary)] tracking-tight">
+          Your briefing is ready
+        </h2>
+        <p className="text-[13px] text-[var(--color-text-tertiary)] mt-3 max-w-sm leading-relaxed">
+          Orbit has mapped your professional world. Your first briefing is waiting.
+        </p>
+
+        {/* Persona-specific preview card */}
+        <div className="mt-8 w-full max-w-sm rounded-xl overflow-hidden border border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)]">
+          <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-[var(--color-accent-subtle)] flex items-center justify-center">
+                <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
+              </div>
+              <span className="text-[11px] font-medium text-[var(--color-text-secondary)]">
+                {config.label} Briefing
+              </span>
+            </div>
+          </div>
+          <div className="px-4 py-4 space-y-2.5">
+            <div className="h-2.5 w-3/4 shimmer rounded" />
+            <div className="h-2.5 w-full shimmer rounded" />
+            <div className="h-2.5 w-2/3 shimmer rounded" />
+            <div className="h-8 w-full shimmer rounded-lg mt-3" />
+            <div className="h-2.5 w-5/6 shimmer rounded" />
+            <div className="h-2.5 w-1/2 shimmer rounded" />
+          </div>
+        </div>
+
+        <button
+          onClick={onComplete}
+          className="mt-8 flex items-center gap-2 px-6 py-3 rounded-xl text-[14px] font-medium bg-[var(--color-accent-strong)] text-white hover:opacity-90 transition-opacity"
+        >
+          View Briefing
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center text-center animate-fade-in">
@@ -320,7 +643,7 @@ function BuildingGraphStep({ onNext }: { onNext: () => void }) {
 
       {/* Progress bar */}
       <div className="w-full max-w-sm mb-8">
-        <div className="h-1.5 bg-[var(--color-bg-elevated)] rounded-full overflow-hidden">
+        <div className="h-1.5 bg-[var(--color-bg-tertiary)] rounded-full overflow-hidden">
           <div
             className="h-full bg-[var(--color-accent)] rounded-full transition-all duration-100 ease-linear"
             style={{ width: `${progress}%` }}
@@ -333,7 +656,7 @@ function BuildingGraphStep({ onNext }: { onNext: () => void }) {
 
       {/* Step labels */}
       <div className="space-y-3 w-full max-w-sm">
-        {GRAPH_STEPS.map((s, i) => {
+        {buildingSteps.map((s, i) => {
           if (!visibleSteps.includes(i)) return null;
           const isActive = i === activeStepIdx;
           const isDone = progress >= s.target;
@@ -364,55 +687,6 @@ function BuildingGraphStep({ onNext }: { onNext: () => void }) {
           );
         })}
       </div>
-    </div>
-  );
-}
-
-// ─── Step 4: Ready ───
-function ReadyStep({ onComplete }: { onComplete: () => void }) {
-  return (
-    <div className="flex flex-col items-center text-center animate-fade-in">
-      {/* Success icon */}
-      <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mb-8">
-        <Check className="w-7 h-7 text-emerald-400" />
-      </div>
-
-      <h2 className="text-[28px] font-bold text-[var(--color-text-primary)] tracking-tight">
-        Your briefing is ready
-      </h2>
-      <p className="text-[13px] text-[var(--color-text-tertiary)] mt-3 max-w-sm leading-relaxed">
-        Orbit has mapped your professional world. Your first briefing is waiting.
-      </p>
-
-      {/* Preview thumbnail */}
-      <div className="mt-8 w-full max-w-sm rounded-xl overflow-hidden border border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)]">
-        <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-full bg-[var(--color-accent-subtle)] flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
-            </div>
-            <span className="text-[11px] font-medium text-[var(--color-text-secondary)]">
-              Morning Briefing
-            </span>
-          </div>
-        </div>
-        <div className="px-4 py-4 space-y-2.5">
-          <div className="h-2.5 w-3/4 shimmer rounded" />
-          <div className="h-2.5 w-full shimmer rounded" />
-          <div className="h-2.5 w-2/3 shimmer rounded" />
-          <div className="h-8 w-full shimmer rounded-lg mt-3" />
-          <div className="h-2.5 w-5/6 shimmer rounded" />
-          <div className="h-2.5 w-1/2 shimmer rounded" />
-        </div>
-      </div>
-
-      <button
-        onClick={onComplete}
-        className="mt-8 flex items-center gap-2 px-6 py-3 rounded-xl text-[14px] font-medium bg-[var(--color-accent-strong)] text-white hover:opacity-90 transition-opacity"
-      >
-        View Briefing
-        <ArrowRight className="w-4 h-4" />
-      </button>
     </div>
   );
 }

@@ -1,9 +1,10 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Home, Inbox, Calendar, BarChart3, Search, Sun, Moon, DollarSign, Target, TrendingUp, Map as MapIcon, ChevronDown } from 'lucide-react';
+import { Home, Search, Sun, Moon, ChevronDown, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { useOrbit, type ActivePage } from '../orbit-app';
+import { getNavGroups, PERSONA_CONFIGS } from '@/lib/persona';
 
 interface NavItem {
   id: ActivePage;
@@ -18,41 +19,29 @@ interface NavGroup {
   defaultOpen?: boolean;
 }
 
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'Workspace',
-    defaultOpen: true,
-    items: [
-      { id: 'home', icon: Home, label: 'Home' },
-      { id: 'inbox', icon: Inbox, label: 'Inbox', badge: 4 },
-      { id: 'calendar', icon: Calendar, label: 'Calendar' },
-      { id: 'analytics', icon: BarChart3, label: 'Analytics' },
-    ],
-  },
-  {
-    label: 'Operations',
-    defaultOpen: true,
-    items: [
-      { id: 'finance', icon: DollarSign, label: 'Finance' },
-      { id: 'operations', icon: Target, label: 'OKRs & Ops' },
-      { id: 'pipeline', icon: TrendingUp, label: 'Pipeline' },
-      { id: 'roadmap', icon: MapIcon, label: 'Roadmap' },
-    ],
-  },
-];
-
 export function LeftSidebar() {
-  const { setCommandPaletteOpen, activePage, setActivePage, theme, toggleTheme } = useOrbit();
+  const { setCommandPaletteOpen, activePage, setActivePage, theme, toggleTheme, persona, userName } = useOrbit();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  const navGroups = getNavGroups(persona) as NavGroup[];
 
   const isGroupOpen = (label: string) => {
     if (collapsed[label] !== undefined) return !collapsed[label];
-    return NAV_GROUPS.find(g => g.label === label)?.defaultOpen ?? true;
+    return navGroups.find(g => g.label === label)?.defaultOpen ?? true;
   };
 
   const toggleGroup = (label: string) => {
     setCollapsed(prev => ({ ...prev, [label]: isGroupOpen(label) }));
   };
+
+  const handleSwitchRole = () => {
+    window.localStorage.removeItem('orbit-onboarded');
+    window.location.reload();
+  };
+
+  const roleConfig = PERSONA_CONFIGS[persona];
+  const displayName = userName || 'User';
+  const initials = displayName.charAt(0).toUpperCase();
 
   return (
     <aside className="hidden md:flex flex-col w-[200px] min-w-[200px] shrink-0 border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-secondary)]">
@@ -80,7 +69,7 @@ export function LeftSidebar() {
 
       {/* Grouped Navigation */}
       <div className="flex-1 overflow-y-auto">
-        {NAV_GROUPS.map((group) => {
+        {navGroups.map((group) => {
           const open = isGroupOpen(group.label);
           const hasActivePage = group.items.some(i => i.id === activePage);
 
@@ -154,17 +143,26 @@ export function LeftSidebar() {
             </>
           )}
         </button>
+
+        {/* Switch role button */}
+        <button
+          onClick={handleSwitchRole}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-all duration-150 text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-secondary)]"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span className="text-[12px] font-medium">Switch role</span>
+        </button>
       </div>
 
       {/* User profile */}
       <div className="px-3 py-3 border-t border-[var(--color-border-subtle)]">
         <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors cursor-pointer">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-[11px] font-bold text-white">
-            M
+            {initials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold text-[var(--color-text-primary)] truncate">Manoj</p>
-            <p className="text-[10px] text-[var(--color-text-muted)] truncate">Chief of Staff</p>
+            <p className="text-[12px] font-semibold text-[var(--color-text-primary)] truncate">{displayName}</p>
+            <p className="text-[10px] text-[var(--color-text-muted)] truncate">{roleConfig.roleTitle}</p>
           </div>
         </div>
       </div>

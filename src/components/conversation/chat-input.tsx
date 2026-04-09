@@ -4,21 +4,21 @@ import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { ArrowUp } from 'lucide-react';
 import { useOrbit } from '../orbit-app';
+import { PERSONA_CONFIGS } from '@/lib/persona';
 
 interface ChatInputProps { onSend: (text: string) => void; isDisabled: boolean; }
 
-const SUGGESTIONS = [
-  'Prep me for my 2pm meeting',
-  'What should I prioritize today?',
-  'Draft a reply to Sarah',
-];
-
 export function ChatInput({ onSend, isDisabled }: ChatInputProps) {
-  const { sendMessage, isStreaming } = useOrbit();
+  const { sendMessage, isStreaming, persona } = useOrbit();
   const [value, setValue] = useState('');
   const ref = useRef<HTMLTextAreaElement>(null);
 
   const disabled = isDisabled || isStreaming;
+  const suggestions = PERSONA_CONFIGS[persona]?.suggestionChips ?? [
+    'Prep me for my 2pm meeting',
+    'What should I prioritize today?',
+    'Draft a reply to Sarah',
+  ];
 
   useEffect(() => {
     const el = ref.current;
@@ -38,7 +38,7 @@ export function ChatInput({ onSend, isDisabled }: ChatInputProps) {
       {/* Suggestion chips */}
       <div className="max-w-2xl mx-auto px-3 md:px-5 pt-2 md:pt-2.5 pb-1">
         <div className="hidden md:flex items-center gap-1.5 overflow-x-auto pb-1.5">
-          {SUGGESTIONS.map((s, i) => (
+          {suggestions.map((s, i) => (
             <button key={i} onClick={() => { setValue(s); ref.current?.focus(); }}
               className={cn(
                 'shrink-0 px-3 py-1 rounded-full text-[12px]',

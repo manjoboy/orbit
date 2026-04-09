@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Search, X, Zap, Clock, ArrowRight, Hash, Calendar, User, FolderKanban, Inbox, BarChart3, DollarSign, Target, TrendingUp, Map as MapIcon } from 'lucide-react';
+import { Search, X, Zap, Clock, ArrowRight, Hash, Calendar, User, FolderKanban, Inbox, BarChart3, Briefcase, Users, Shield, Layers, MessageSquare, GitBranch, Code, Target, Rocket, DollarSign, FileCheck, LineChart } from 'lucide-react';
 import { useOrbit, type ActivePanel, type Section, type ActivePage } from '../orbit-app';
 import { useKeyboardShortcut } from '@/lib/hooks/useKeyboardShortcut';
 import {
@@ -12,6 +12,7 @@ import {
   type CommandItem,
   type CommandCategory,
 } from './command-data';
+import { PERSONA_CONFIGS, type Persona } from '@/lib/persona';
 
 // ─── Recent items (simulated) ───
 const RECENT_ITEMS: CommandItem[] = [
@@ -20,35 +21,61 @@ const RECENT_ITEMS: CommandItem[] = [
   { id: 'recent-auth', title: 'Auth Migration', subtitle: 'Project · Health 58%', category: 'Projects', icon: FolderKanban, panelType: 'project', data: { name: 'Auth Service Migration', health: 0.58, trend: 'down', velocity: -15, blockers: 1, deadline: 10, status: 'ACTIVE' } },
 ];
 
-// ─── Quick AI prompts ───
-const AI_PROMPTS = [
-  'What should I prioritize today?',
-  'Prep me for my 2pm meeting',
-  'Draft a reply to Sarah Chen',
-  'Summarize my open action items',
-  'What\'s at risk this week?',
-  'Who needs a follow-up?',
-];
-
-// ─── Page navigation items ───
-const PAGE_ITEMS: Array<{ id: ActivePage; label: string; subtitle: string; icon: typeof Inbox }> = [
+// ─── Shared page navigation items ───
+const SHARED_PAGE_ITEMS: Array<{ id: ActivePage; label: string; subtitle: string; icon: typeof Inbox }> = [
   { id: 'home', label: 'Home', subtitle: 'Dashboard overview', icon: Hash },
   { id: 'inbox', label: 'Inbox', subtitle: '4 priority items', icon: Inbox },
   { id: 'calendar', label: 'Calendar', subtitle: '3 meetings today', icon: Calendar },
   { id: 'analytics', label: 'Analytics', subtitle: 'Metrics & insights', icon: BarChart3 },
-  { id: 'finance', label: 'Finance', subtitle: 'Budget & approvals', icon: DollarSign },
-  { id: 'operations', label: 'OKRs & Ops', subtitle: 'Goals & decisions', icon: Target },
-  { id: 'pipeline', label: 'Pipeline', subtitle: 'Deals & revenue', icon: TrendingUp },
-  { id: 'roadmap', label: 'Roadmap', subtitle: 'Product roadmap', icon: MapIcon },
 ];
 
+// ─── Persona-specific page items ───
+const PERSONA_PAGE_ITEMS: Record<Persona, Array<{ id: ActivePage; label: string; subtitle: string; icon: typeof Inbox }>> = {
+  sales: [
+    { id: 'deals', label: 'Deals', subtitle: 'Pipeline & deals', icon: Briefcase },
+    { id: 'relationships', label: 'Relationships', subtitle: 'Contacts & accounts', icon: Users },
+    { id: 'competitive-intel', label: 'Competitive Intel', subtitle: 'Threats & battlecards', icon: Shield },
+  ],
+  product: [
+    { id: 'features', label: 'Features', subtitle: 'Roadmap & requests', icon: Layers },
+    { id: 'customer-feedback', label: 'Feedback', subtitle: 'Customer insights', icon: MessageSquare },
+    { id: 'sprints', label: 'Sprints', subtitle: 'Sprint tracking', icon: GitBranch },
+  ],
+  engineering: [
+    { id: 'tickets', label: 'Tickets', subtitle: 'Sprint & backlog', icon: Target },
+    { id: 'pull-requests', label: 'Pull Requests', subtitle: 'Code review', icon: Code },
+    { id: 'deployments', label: 'Deployments', subtitle: 'Deploy pipeline', icon: Rocket },
+  ],
+  finance: [
+    { id: 'budget', label: 'Budget', subtitle: 'Budget & spend', icon: DollarSign },
+    { id: 'approvals', label: 'Approvals', subtitle: 'Pending approvals', icon: FileCheck },
+    { id: 'forecasting', label: 'Forecasting', subtitle: 'Projections & models', icon: LineChart },
+  ],
+};
+
 export function CommandPalette() {
-  const { commandPaletteOpen, setCommandPaletteOpen, setActivePanel, setActiveSection, setActivePage, sendMessage } = useOrbit();
+  const { commandPaletteOpen, setCommandPaletteOpen, setActivePanel, setActiveSection, setActivePage, sendMessage, persona } = useOrbit();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mode, setMode] = useState<'default' | 'ai'>('default');
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Persona-aware pages & AI prompts
+  const pageItems = useMemo(() => [
+    ...SHARED_PAGE_ITEMS,
+    ...(PERSONA_PAGE_ITEMS[persona] ?? []),
+  ], [persona]);
+
+  const aiPrompts = useMemo(() => {
+    const personaChips = PERSONA_CONFIGS[persona]?.suggestionChips ?? [];
+    return [
+      ...personaChips,
+      'Summarize my open action items',
+      'What\'s at risk this week?',
+      'Who needs a follow-up?',
+    ];
+  }, [persona]);
 
   // Filter results
   const results = useMemo(() => searchCommands(query), [query]);
@@ -251,7 +278,7 @@ export function CommandPalette() {
                   <div className="px-4 pt-2 pb-1">
                     <span className="text-[10px] font-medium text-[var(--color-text-muted)] uppercase tracking-widest">Suggested prompts</span>
                   </div>
-                  {AI_PROMPTS.map((prompt, i) => (
+                  {aiPrompts.map((prompt, i) => (
                     <button
                       key={i}
                       onClick={() => handleAskOrbit(prompt)}
@@ -308,7 +335,7 @@ export function CommandPalette() {
                       <span className="text-[10px] font-medium text-[var(--color-text-muted)] uppercase tracking-widest">Navigate to</span>
                     </div>
                     <div className="grid grid-cols-4 gap-1.5 px-3 pb-2">
-                      {PAGE_ITEMS.map((page) => (
+                      {pageItems.map((page) => (
                         <button
                           key={page.id}
                           onClick={() => navigateTo(page.id)}
