@@ -39,13 +39,9 @@ export function BriefingStream() {
   const { setActivePanel, setActiveSection, messages, isStreaming } = useOrbit();
   const [visibleSections, setVisibleSections] = useState<number>(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const hasStarted = useRef(false);
 
   // Stream sections in one by one
   useEffect(() => {
-    if (hasStarted.current) return;
-    hasStarted.current = true;
-
     let i = 0;
     let cancelled = false;
     function showNext() {
@@ -54,9 +50,9 @@ export function BriefingStream() {
       i++;
       setTimeout(showNext, 400);
     }
-    setTimeout(showNext, 500);
+    const timer = setTimeout(showNext, 500);
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(timer); };
   }, []);
 
   // Auto-scroll on new sections

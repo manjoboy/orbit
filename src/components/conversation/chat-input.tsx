@@ -35,7 +35,7 @@ export function ChatInput({ onSend, isDisabled }: ChatInputProps) {
 
   return (
     <div className="shrink-0 border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-primary)]">
-      {/* Suggestion chips — hidden on mobile, horizontally scrollable on tablet+ */}
+      {/* Suggestion chips */}
       <div className="max-w-2xl mx-auto px-3 md:px-5 pt-2 md:pt-2.5 pb-1">
         <div className="hidden md:flex items-center gap-1.5 overflow-x-auto pb-1.5">
           {SUGGESTIONS.map((s, i) => (
@@ -58,15 +58,19 @@ export function ChatInput({ onSend, isDisabled }: ChatInputProps) {
           'focus-within:border-[var(--color-border-strong)]',
           'transition-colors'
         )}>
+          {/* Orbit icon */}
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shrink-0 mb-0.5">
+            <div className="w-2 h-2 rounded-full bg-white/90" />
+          </div>
           <textarea ref={ref} value={value} onChange={e => setValue(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
-            placeholder="Message..." rows={1} disabled={disabled}
+            placeholder="What should I prioritize today?" rows={1} disabled={disabled}
             className="flex-1 resize-none bg-transparent text-[13px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] outline-none max-h-36 disabled:opacity-40" />
           <button onClick={submit} disabled={!value.trim() || disabled}
             className={cn(
-              'w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all',
+              'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all duration-150',
               value.trim() && !disabled
-                ? 'bg-[var(--color-accent-strong)] text-white'
+                ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 active:scale-95'
                 : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-muted)]'
             )}>
             <ArrowUp className="w-3.5 h-3.5" />

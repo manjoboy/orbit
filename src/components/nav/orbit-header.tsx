@@ -25,21 +25,21 @@ export function OrbitHeader() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 shrink-0 flex items-center gap-3 px-3 md:px-4 h-12 border-b border-[var(--color-border-subtle)] backdrop-blur-xl bg-[var(--color-bg-primary)]/80 relative">
-      {/* Logo — hidden when mobile search is expanded */}
+    <header className="sticky top-0 z-40 shrink-0 flex items-center gap-3 px-3 md:px-5 h-14 border-b border-[var(--color-border-subtle)] backdrop-blur-xl bg-[var(--color-bg-primary)]/80 relative">
+      {/* Mobile: Logo (only shown on mobile since sidebar is hidden) */}
       <div className={cn(
-        'flex items-center gap-2 shrink-0',
-        mobileSearchOpen && 'hidden md:flex'
+        'flex items-center gap-2 shrink-0 md:hidden',
+        mobileSearchOpen && 'hidden'
       )}>
-        <div className="w-6 h-6 rounded-full bg-[var(--color-accent-subtle)] flex items-center justify-center">
-          <div className="w-2.5 h-2.5 rounded-full bg-[var(--color-accent)]" />
+        <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+          <div className="w-2.5 h-2.5 rounded-full bg-white/90" />
         </div>
-        <span className="text-[13px] font-semibold text-[var(--color-text-primary)] tracking-tight">
+        <span className="text-[14px] font-semibold text-[var(--color-text-primary)] tracking-tight">
           Orbit
         </span>
       </div>
 
-      {/* Mobile search icon button — only shown on mobile when search is collapsed */}
+      {/* Mobile search icon */}
       {!mobileSearchOpen && (
         <button
           onClick={() => setCommandPaletteOpen(true)}
@@ -49,7 +49,7 @@ export function OrbitHeader() {
         </button>
       )}
 
-      {/* Search — always visible on md+, expandable full-width on mobile */}
+      {/* Search bar — desktop only (sidebar has its own search trigger) */}
       <div className={cn(
         'items-center flex-1 max-w-md mx-auto gap-2 px-3 h-8 rounded-lg transition-all duration-200',
         searchFocused
@@ -86,23 +86,22 @@ export function OrbitHeader() {
         )}
       </div>
 
-      {/* Actions — hidden when mobile search is expanded */}
+      {/* Actions */}
       <div className={cn(
         'flex items-center gap-1 shrink-0',
         mobileSearchOpen && 'hidden md:flex'
       )}>
-        {/* Bell / Notifications */}
         <button
           data-notification-bell
           onClick={toggleNotifications}
           className={cn(
-            'relative w-7 h-7 rounded-md flex items-center justify-center transition-colors shrink-0',
+            'relative w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0',
             notificationsOpen
               ? 'text-[var(--color-accent)] bg-[var(--color-accent-subtle)]'
               : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg-hover)]'
           )}
         >
-          <Bell className="w-3.5 h-3.5" />
+          <Bell className="w-4 h-4" />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-[9px] font-bold text-white flex items-center justify-center tabular-nums leading-none">
               {unreadCount}
@@ -110,7 +109,6 @@ export function OrbitHeader() {
           )}
         </button>
 
-        {/* Settings */}
         <button
           onClick={() => {
             if (activePanel.type === 'settings') {
@@ -120,13 +118,13 @@ export function OrbitHeader() {
             }
           }}
           className={cn(
-            'w-7 h-7 rounded-md flex items-center justify-center transition-colors shrink-0',
+            'w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0',
             activePanel.type === 'settings'
               ? 'text-[var(--color-accent)] bg-[var(--color-accent-subtle)]'
               : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg-hover)]'
           )}
         >
-          <Settings className="w-3.5 h-3.5" />
+          <Settings className="w-4 h-4" />
         </button>
       </div>
 

@@ -1,24 +1,33 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useRef, useCallback, createContext, useContext, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { OrbitHeader } from './nav/orbit-header';
-import { SectionNav } from './nav/section-nav';
+import { LeftSidebar } from './nav/left-sidebar';
 import { ChatInput } from './conversation/chat-input';
-import { BriefingStream } from './conversation/briefing-stream';
+import { DashboardContent } from './conversation/dashboard-content';
 import { DetailCanvas } from './canvas/detail-canvas';
 import { CommandPalette } from './command-palette/command-palette';
 import { useKeyboardShortcut } from '@/lib/hooks/useKeyboardShortcut';
+import { InboxPage } from './pages/inbox-page';
+import { CalendarPage } from './pages/calendar-page';
+import { AnalyticsPage } from './pages/analytics-page';
+import { FinancePage } from './pages/finance-page';
+import { OperationsPage } from './pages/operations-page';
+import { PipelinePage } from './pages/pipeline-page';
+import { RoadmapPage } from './pages/roadmap-page';
 
 // ─── Shared State ───
 export type ActivePanel = {
-  type: 'meeting' | 'project' | 'person' | 'intel' | 'wellbeing' | 'draft' | 'settings' | null;
+  type: 'meeting' | 'project' | 'person' | 'intel' | 'wellbeing' | 'draft' | 'settings' | 'budget' | 'okr' | 'deal' | 'roadmap-detail' | null;
   id?: string;
   title?: string;
   data?: Record<string, unknown>;
 };
 
 export type Section = 'inbox' | 'meetings' | 'projects' | 'intel' | 'people' | 'wellbeing';
+export type ActivePage = 'home' | 'inbox' | 'calendar' | 'analytics' | 'finance' | 'operations' | 'pipeline' | 'roadmap';
+export type Theme = 'dark' | 'light';
 
 export interface ChatMessage {
   id: string;
@@ -32,6 +41,10 @@ interface OrbitContextType {
   setActivePanel: (p: ActivePanel) => void;
   activeSection: Section;
   setActiveSection: (s: Section) => void;
+  activePage: ActivePage;
+  setActivePage: (p: ActivePage) => void;
+  theme: Theme;
+  toggleTheme: () => void;
   messages: ChatMessage[];
   isStreaming: boolean;
   sendMessage: (text: string) => void;
@@ -44,6 +57,10 @@ export const OrbitContext = createContext<OrbitContextType>({
   setActivePanel: () => {},
   activeSection: 'inbox',
   setActiveSection: () => {},
+  activePage: 'home',
+  setActivePage: () => {},
+  theme: 'dark',
+  toggleTheme: () => {},
   messages: [],
   isStreaming: false,
   sendMessage: () => {},
@@ -57,10 +74,21 @@ export const useOrbit = () => useContext(OrbitContext);
 export function OrbitApp() {
   const [activePanel, setActivePanel] = useState<ActivePanel>({ type: null });
   const [activeSection, setActiveSection] = useState<Section>('inbox');
+  const [activePage, setActivePage] = useState<ActivePage>('home');
+  const [theme, setTheme] = useState<Theme>('dark');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const isPanelOpen = activePanel.type !== null;
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  }, []);
+
+  // Apply theme to root element
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // Abort controller for cancelling in-flight requests
   const abortRef = useRef<AbortController | null>(null);
@@ -68,7 +96,6 @@ export function OrbitApp() {
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isStreaming) return;
 
-    // Add user message
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -78,7 +105,6 @@ export function OrbitApp() {
     setMessages((prev) => [...prev, userMsg]);
     setIsStreaming(true);
 
-    // Create placeholder AI message
     const aiMsgId = `ai-${Date.now()}`;
     const aiMsg: ChatMessage = {
       id: aiMsgId,
@@ -88,7 +114,6 @@ export function OrbitApp() {
     };
     setMessages((prev) => [...prev, aiMsg]);
 
-    // Call API
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -100,9 +125,7 @@ export function OrbitApp() {
         signal: controller.signal,
       });
 
-      if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
 
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No response body');
@@ -113,10 +136,8 @@ export function OrbitApp() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         accumulated += decoder.decode(value, { stream: true });
         const content = accumulated;
-
         setMessages((prev) =>
           prev.map((m) => (m.id === aiMsgId ? { ...m, content } : m))
         );
@@ -137,7 +158,6 @@ export function OrbitApp() {
     }
   }, [isStreaming]);
 
-  // Keyboard shortcut: Cmd+K to open command palette
   useKeyboardShortcut('cmd+k', () => {
     setCommandPaletteOpen((prev) => !prev);
   }, { allowInInput: true });
@@ -145,71 +165,82 @@ export function OrbitApp() {
   return (
     <OrbitContext.Provider
       value={{
-        activePanel,
-        setActivePanel,
-        activeSection,
-        setActiveSection,
-        messages,
-        isStreaming,
-        sendMessage,
-        commandPaletteOpen,
-        setCommandPaletteOpen,
+        activePanel, setActivePanel,
+        activeSection, setActiveSection,
+        activePage, setActivePage,
+        theme, toggleTheme,
+        messages, isStreaming, sendMessage,
+        commandPaletteOpen, setCommandPaletteOpen,
       }}
     >
-      <div className="flex flex-col h-screen">
-        <OrbitHeader />
+      <div className="flex h-screen overflow-hidden bg-[var(--color-bg-primary)]">
+        {/* Left Sidebar */}
+        <LeftSidebar />
 
-        <div className="flex flex-1 overflow-hidden relative">
-          {/* Left: Conversation Stream — full-width on mobile, constrained on desktop when panel open */}
-          <div className={cn(
-            'flex flex-col transition-all duration-300 ease-[var(--ease-out)]',
-            'w-full',
-            isPanelOpen ? 'md:w-[480px] md:min-w-[480px]' : 'md:flex-1'
-          )}>
-            {/* Add bottom padding on mobile for the bottom nav bar */}
-            <div className="flex flex-col flex-1 overflow-hidden pb-14 md:pb-0">
-              <BriefingStream />
-              <ChatInput
-                onSend={(text) => sendMessage(text)}
-                isDisabled={isStreaming}
-              />
-            </div>
+        {/* Main content area */}
+        <div className="flex flex-col flex-1 min-w-0">
+          <OrbitHeader />
+
+          <div className="flex flex-1 overflow-hidden relative">
+            {/* Main scrollable content */}
+            {activePage === 'home' ? (
+              <>
+                <div className={cn(
+                  'flex flex-col transition-all duration-300 ease-[var(--ease-out)]',
+                  'w-full',
+                  isPanelOpen ? 'md:w-[520px] md:min-w-[520px]' : 'md:flex-1'
+                )}>
+                  <div className="flex flex-col flex-1 overflow-hidden pb-14 md:pb-0">
+                    <DashboardContent />
+                    <ChatInput
+                      onSend={(text) => sendMessage(text)}
+                      isDisabled={isStreaming}
+                    />
+                  </div>
+                </div>
+
+                {/* Right: Detail Canvas */}
+                {isPanelOpen && (
+                  <>
+                    <div
+                      className="md:hidden fixed inset-0 z-40 bg-black/60 animate-fade-in-backdrop"
+                      onClick={() => setActivePanel({ type: null })}
+                    />
+                    <div className={cn(
+                      'fixed inset-0 z-50 bg-[var(--color-bg-primary)] animate-slide-up-overlay',
+                      'md:relative md:inset-auto md:z-auto md:flex-1 md:border-l md:border-[var(--color-border-subtle)] md:animate-fade-in md:bg-transparent'
+                    )}>
+                      <button
+                        onClick={() => setActivePanel({ type: null })}
+                        className="md:hidden absolute top-3 right-3 z-10 w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] transition-colors"
+                        aria-label="Close panel"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M1 1l12 12M13 1L1 13"/></svg>
+                      </button>
+                      <DetailCanvas />
+                    </div>
+                  </>
+                )}
+              </>
+            ) : activePage === 'inbox' ? (
+              <InboxPage />
+            ) : activePage === 'calendar' ? (
+              <CalendarPage />
+            ) : activePage === 'analytics' ? (
+              <AnalyticsPage />
+            ) : activePage === 'finance' ? (
+              <FinancePage />
+            ) : activePage === 'operations' ? (
+              <OperationsPage />
+            ) : activePage === 'pipeline' ? (
+              <PipelinePage />
+            ) : activePage === 'roadmap' ? (
+              <RoadmapPage />
+            ) : null}
           </div>
-
-          {/* Right: Detail Canvas — overlay on mobile, side-by-side on md+ */}
-          {isPanelOpen && (
-            <>
-              {/* Mobile backdrop */}
-              <div
-                className="md:hidden fixed inset-0 z-40 bg-black/60 animate-fade-in-backdrop"
-                onClick={() => setActivePanel({ type: null })}
-              />
-              {/* Panel */}
-              <div className={cn(
-                // Mobile: fixed full-screen overlay
-                'fixed inset-0 z-50 bg-[var(--color-bg-primary)] animate-slide-up-overlay',
-                // Desktop: side-by-side
-                'md:relative md:inset-auto md:z-auto md:flex-1 md:border-l md:border-[var(--color-border-subtle)] md:animate-fade-in md:bg-transparent'
-              )}>
-                {/* Mobile close button */}
-                <button
-                  onClick={() => setActivePanel({ type: null })}
-                  className="md:hidden absolute top-3 right-3 z-10 w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] transition-colors"
-                  aria-label="Close panel"
-                >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M1 1l12 12M13 1L1 13"/></svg>
-                </button>
-                <DetailCanvas />
-              </div>
-            </>
-          )}
-
-          {/* Far right: Section Nav dots — hidden on mobile (replaced by bottom bar) */}
-          <SectionNav />
         </div>
       </div>
 
-      {/* Command Palette */}
       <CommandPalette />
     </OrbitContext.Provider>
   );
